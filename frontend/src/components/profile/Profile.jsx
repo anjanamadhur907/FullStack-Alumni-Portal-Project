@@ -20,7 +20,6 @@ import {
   FaGraduationCap,
   FaCheckCircle,
   FaExternalLinkAlt,
-  FaBuilding,
   FaLayerGroup,
   FaShieldAlt,
   FaClock,
@@ -31,6 +30,8 @@ import {
   FaBookOpen,
   FaTag,
   FaExpandAlt,
+  FaPlus,
+  FaLink,
 } from "react-icons/fa";
 
 function Profile() {
@@ -272,9 +273,6 @@ function Profile() {
   const displayName =
     profile?.name || (isOwnProfile ? currentUser?.name || "My Profile" : "Member Profile");
 
-  const hasAnySocialLinks =
-    Boolean(profile?.website_url1 || profile?.website_url2 || profile?.website_url3);
-
   return (
     <div
       style={{
@@ -287,7 +285,7 @@ function Profile() {
       <Navbar />
 
       <div className="container py-3 py-md-4" style={{ maxWidth: "900px" }}>
-        {/* Navigation Bar */}
+        {/* Navigation & Share Bar */}
         <div className="d-flex align-items-center justify-content-between mb-3.5">
           <NavLink
             to="/"
@@ -321,7 +319,7 @@ function Profile() {
           </div>
         ) : profile ? (
           <>
-            {/* 1. Main Profile Banner Header Card */}
+            {/* 1. Main Profile Header Banner Card */}
             <div
               className="ib-card p-4 p-md-4 mb-4"
               style={{
@@ -499,6 +497,15 @@ function Profile() {
                       <FaBookOpen size={14} color="var(--ib-primary, #E42313)" />
                       <span>About / Bio</span>
                     </h5>
+                    {isOwnProfile && !profile.about && (
+                      <button
+                        onClick={() => setEdit(true)}
+                        className="btn btn-sm btn-outline-danger rounded-pill px-3 py-0.5 d-inline-flex align-items-center gap-1"
+                        style={{ fontSize: "0.75rem" }}
+                      >
+                        <FaPlus size={9} /> Add Bio
+                      </button>
+                    )}
                   </div>
                   <div
                     className="text-secondary mb-0"
@@ -521,7 +528,7 @@ function Profile() {
                   </div>
                 </div>
 
-                {/* Social & Professional Links Card */}
+                {/* Professional & Social Links Section */}
                 <div
                   className="ib-card p-4"
                   style={{
@@ -535,76 +542,78 @@ function Profile() {
                       className="brand-font font-weight-bold mb-0 d-inline-flex align-items-center gap-2"
                       style={{ fontSize: "1.05rem", color: "var(--ib-text-main)" }}
                     >
-                      <FaGlobe size={14} color="#005DA6" />
-                      <span>Professional & Social Links</span>
+                      <FaLink size={14} color="#005DA6" />
+                      <span>Professional Links & Socials</span>
                     </h5>
-                    {hasAnySocialLinks && (
-                      <span className="text-muted" style={{ fontSize: "0.78rem" }}>
-                        Click to visit profile
-                      </span>
+                    {isOwnProfile && (!profile.website_url1 || !profile.website_url2 || !profile.website_url3) && (
+                      <button
+                        onClick={() => setEdit(true)}
+                        className="btn btn-sm btn-outline-danger rounded-pill px-3 py-0.5 d-inline-flex align-items-center gap-1"
+                        style={{ fontSize: "0.75rem" }}
+                      >
+                        <FaPlus size={9} /> Edit Links
+                      </button>
                     )}
                   </div>
 
-                  {hasAnySocialLinks ? (
-                    <div className="d-flex flex-column gap-2.5">
-                      {/* LinkedIn Link Card */}
-                      {profile.website_url1 && (
+                  <div className="d-flex flex-column gap-3">
+                    {/* LinkedIn Item */}
+                    <div
+                      className="d-flex align-items-center justify-content-between p-3 rounded-3 flex-wrap gap-2"
+                      style={{
+                        background: profile.website_url1 ? "rgba(10, 102, 194, 0.08)" : "var(--ib-bg-surface-secondary)",
+                        border: profile.website_url1 ? "1.5px solid rgba(10, 102, 194, 0.3)" : "1px dashed var(--ib-border)",
+                        borderRadius: "14px",
+                      }}
+                    >
+                      <div className="d-flex align-items-center gap-3 overflow-hidden">
                         <div
-                          className="d-flex align-items-center justify-content-between p-3 rounded-3 flex-wrap gap-2"
                           style={{
-                            background: "rgba(10, 102, 194, 0.07)",
-                            border: "1px solid rgba(10, 102, 194, 0.22)",
-                            borderRadius: "12px",
+                            width: "42px",
+                            height: "42px",
+                            borderRadius: "50%",
+                            background: profile.website_url1 ? "#0A66C2" : "rgba(10, 102, 194, 0.2)",
+                            color: "#FFF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
                           }}
                         >
-                          <div className="d-flex align-items-center gap-3 overflow-hidden">
-                            <div
-                              style={{
-                                width: "38px",
-                                height: "38px",
-                                borderRadius: "50%",
-                                background: "#0A66C2",
-                                color: "#FFF",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                              }}
-                            >
-                              <FaLinkedin size={18} />
-                            </div>
-                            <div className="overflow-hidden">
-                              <div
-                                className="font-weight-bold"
-                                style={{ fontSize: "0.88rem", color: "#0A66C2" }}
-                              >
-                                LinkedIn Profile
-                              </div>
-                              <a
-                                href={formatUrl(profile.website_url1)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-truncate d-block text-muted text-decoration-none"
-                                style={{ fontSize: "0.78rem", maxWidth: "420px" }}
-                              >
-                                {profile.website_url1}
-                              </a>
-                            </div>
+                          <FaLinkedin size={20} />
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="font-weight-bold" style={{ fontSize: "0.9rem", color: profile.website_url1 ? "#0A66C2" : "var(--ib-text-main)" }}>
+                            LinkedIn Profile
                           </div>
+                          {profile.website_url1 ? (
+                            <a
+                              href={formatUrl(profile.website_url1)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-truncate d-block text-muted text-decoration-none"
+                              style={{ fontSize: "0.8rem", maxWidth: "420px" }}
+                            >
+                              {profile.website_url1}
+                            </a>
+                          ) : (
+                            <small className="text-muted d-block" style={{ fontSize: "0.78rem" }}>
+                              {isOwnProfile ? "Not linked yet. Add your LinkedIn profile URL." : "Not provided by this member."}
+                            </small>
+                          )}
+                        </div>
+                      </div>
 
-                          <div className="d-flex align-items-center gap-2 ms-auto">
+                      <div className="d-flex align-items-center gap-2 ms-auto">
+                        {profile.website_url1 ? (
+                          <>
                             <button
-                              onClick={() =>
-                                copyToClipboard(
-                                  formatUrl(profile.website_url1),
-                                  "LinkedIn Link"
-                                )
-                              }
-                              className="btn btn-sm btn-light border rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 text-muted"
-                              style={{ fontSize: "0.75rem" }}
+                              onClick={() => copyToClipboard(formatUrl(profile.website_url1), "LinkedIn Link")}
+                              className="btn btn-sm btn-light border rounded-pill px-2.5 py-1.5 d-inline-flex align-items-center gap-1 text-muted"
+                              style={{ fontSize: "0.78rem" }}
                               title="Copy link"
                             >
-                              <FaCopy size={10} />
+                              <FaCopy size={11} />
                               <span className="d-none d-sm-inline">Copy</span>
                             </button>
                             <a
@@ -612,74 +621,81 @@ function Profile() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="btn btn-sm px-3.5 py-1.5 rounded-pill font-weight-bold text-white d-inline-flex align-items-center gap-1.5 shadow-sm"
-                              style={{
-                                fontSize: "0.82rem",
-                                background: "#0A66C2",
-                                border: "none",
-                              }}
+                              style={{ fontSize: "0.82rem", background: "#0A66C2", border: "none" }}
                             >
                               <span>Open LinkedIn</span>
                               <FaExternalLinkAlt size={10} />
                             </a>
-                          </div>
-                        </div>
-                      )}
+                          </>
+                        ) : isOwnProfile ? (
+                          <button
+                            onClick={() => setEdit(true)}
+                            className="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 font-weight-bold"
+                            style={{ fontSize: "0.78rem" }}
+                          >
+                            + Connect
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
 
-                      {/* GitHub Link Card */}
-                      {profile.website_url2 && (
+                    {/* GitHub Item */}
+                    <div
+                      className="d-flex align-items-center justify-content-between p-3 rounded-3 flex-wrap gap-2"
+                      style={{
+                        background: profile.website_url2 ? "rgba(36, 41, 47, 0.08)" : "var(--ib-bg-surface-secondary)",
+                        border: profile.website_url2 ? "1.5px solid rgba(36, 41, 47, 0.3)" : "1px dashed var(--ib-border)",
+                        borderRadius: "14px",
+                      }}
+                    >
+                      <div className="d-flex align-items-center gap-3 overflow-hidden">
                         <div
-                          className="d-flex align-items-center justify-content-between p-3 rounded-3 flex-wrap gap-2"
                           style={{
-                            background: "rgba(36, 41, 47, 0.06)",
-                            border: "1px solid rgba(36, 41, 47, 0.2)",
-                            borderRadius: "12px",
+                            width: "42px",
+                            height: "42px",
+                            borderRadius: "50%",
+                            background: profile.website_url2 ? "#24292F" : "rgba(36, 41, 47, 0.2)",
+                            color: "#FFF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
                           }}
                         >
-                          <div className="d-flex align-items-center gap-3 overflow-hidden">
-                            <div
-                              style={{
-                                width: "38px",
-                                height: "38px",
-                                borderRadius: "50%",
-                                background: "#24292F",
-                                color: "#FFF",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                              }}
-                            >
-                              <FaGithub size={18} />
-                            </div>
-                            <div className="overflow-hidden">
-                              <div
-                                className="font-weight-bold"
-                                style={{ fontSize: "0.88rem", color: "var(--ib-text-main)" }}
-                              >
-                                GitHub Profile
-                              </div>
-                              <a
-                                href={formatUrl(profile.website_url2)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-truncate d-block text-muted text-decoration-none"
-                                style={{ fontSize: "0.78rem", maxWidth: "420px" }}
-                              >
-                                {profile.website_url2}
-                              </a>
-                            </div>
+                          <FaGithub size={20} />
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="font-weight-bold" style={{ fontSize: "0.9rem", color: "var(--ib-text-main)" }}>
+                            GitHub Profile
                           </div>
+                          {profile.website_url2 ? (
+                            <a
+                              href={formatUrl(profile.website_url2)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-truncate d-block text-muted text-decoration-none"
+                              style={{ fontSize: "0.8rem", maxWidth: "420px" }}
+                            >
+                              {profile.website_url2}
+                            </a>
+                          ) : (
+                            <small className="text-muted d-block" style={{ fontSize: "0.78rem" }}>
+                              {isOwnProfile ? "Not linked yet. Add your GitHub profile URL." : "Not provided by this member."}
+                            </small>
+                          )}
+                        </div>
+                      </div>
 
-                          <div className="d-flex align-items-center gap-2 ms-auto">
+                      <div className="d-flex align-items-center gap-2 ms-auto">
+                        {profile.website_url2 ? (
+                          <>
                             <button
-                              onClick={() =>
-                                copyToClipboard(formatUrl(profile.website_url2), "GitHub Link")
-                              }
-                              className="btn btn-sm btn-light border rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 text-muted"
-                              style={{ fontSize: "0.75rem" }}
+                              onClick={() => copyToClipboard(formatUrl(profile.website_url2), "GitHub Link")}
+                              className="btn btn-sm btn-light border rounded-pill px-2.5 py-1.5 d-inline-flex align-items-center gap-1 text-muted"
+                              style={{ fontSize: "0.78rem" }}
                               title="Copy link"
                             >
-                              <FaCopy size={10} />
+                              <FaCopy size={11} />
                               <span className="d-none d-sm-inline">Copy</span>
                             </button>
                             <a
@@ -687,77 +703,81 @@ function Profile() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="btn btn-sm px-3.5 py-1.5 rounded-pill font-weight-bold text-white d-inline-flex align-items-center gap-1.5 shadow-sm"
-                              style={{
-                                fontSize: "0.82rem",
-                                background: "#24292F",
-                                border: "none",
-                              }}
+                              style={{ fontSize: "0.82rem", background: "#24292F", border: "none" }}
                             >
                               <span>Open GitHub</span>
                               <FaExternalLinkAlt size={10} />
                             </a>
-                          </div>
-                        </div>
-                      )}
+                          </>
+                        ) : isOwnProfile ? (
+                          <button
+                            onClick={() => setEdit(true)}
+                            className="btn btn-sm btn-outline-dark rounded-pill px-3 py-1 font-weight-bold"
+                            style={{ fontSize: "0.78rem" }}
+                          >
+                            + Connect
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
 
-                      {/* Portfolio / Personal Website Link Card */}
-                      {profile.website_url3 && (
+                    {/* Portfolio / Personal Website Item */}
+                    <div
+                      className="d-flex align-items-center justify-content-between p-3 rounded-3 flex-wrap gap-2"
+                      style={{
+                        background: profile.website_url3 ? "rgba(0, 93, 166, 0.08)" : "var(--ib-bg-surface-secondary)",
+                        border: profile.website_url3 ? "1.5px solid rgba(0, 93, 166, 0.3)" : "1px dashed var(--ib-border)",
+                        borderRadius: "14px",
+                      }}
+                    >
+                      <div className="d-flex align-items-center gap-3 overflow-hidden">
                         <div
-                          className="d-flex align-items-center justify-content-between p-3 rounded-3 flex-wrap gap-2"
                           style={{
-                            background: "rgba(0, 93, 166, 0.07)",
-                            border: "1px solid rgba(0, 93, 166, 0.22)",
-                            borderRadius: "12px",
+                            width: "42px",
+                            height: "42px",
+                            borderRadius: "50%",
+                            background: profile.website_url3 ? "#005DA6" : "rgba(0, 93, 166, 0.2)",
+                            color: "#FFF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
                           }}
                         >
-                          <div className="d-flex align-items-center gap-3 overflow-hidden">
-                            <div
-                              style={{
-                                width: "38px",
-                                height: "38px",
-                                borderRadius: "50%",
-                                background: "#005DA6",
-                                color: "#FFF",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                              }}
-                            >
-                              <FaGlobe size={18} />
-                            </div>
-                            <div className="overflow-hidden">
-                              <div
-                                className="font-weight-bold"
-                                style={{ fontSize: "0.88rem", color: "#005DA6" }}
-                              >
-                                Portfolio / Personal Website
-                              </div>
-                              <a
-                                href={formatUrl(profile.website_url3)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-truncate d-block text-muted text-decoration-none"
-                                style={{ fontSize: "0.78rem", maxWidth: "420px" }}
-                              >
-                                {profile.website_url3}
-                              </a>
-                            </div>
+                          <FaGlobe size={20} />
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="font-weight-bold" style={{ fontSize: "0.9rem", color: profile.website_url3 ? "#005DA6" : "var(--ib-text-main)" }}>
+                            Portfolio / Personal Website
                           </div>
+                          {profile.website_url3 ? (
+                            <a
+                              href={formatUrl(profile.website_url3)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-truncate d-block text-muted text-decoration-none"
+                              style={{ fontSize: "0.8rem", maxWidth: "420px" }}
+                            >
+                              {profile.website_url3}
+                            </a>
+                          ) : (
+                            <small className="text-muted d-block" style={{ fontSize: "0.78rem" }}>
+                              {isOwnProfile ? "Not linked yet. Add your personal portfolio or website URL." : "Not provided by this member."}
+                            </small>
+                          )}
+                        </div>
+                      </div>
 
-                          <div className="d-flex align-items-center gap-2 ms-auto">
+                      <div className="d-flex align-items-center gap-2 ms-auto">
+                        {profile.website_url3 ? (
+                          <>
                             <button
-                              onClick={() =>
-                                copyToClipboard(
-                                  formatUrl(profile.website_url3),
-                                  "Portfolio Link"
-                                )
-                              }
-                              className="btn btn-sm btn-light border rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 text-muted"
-                              style={{ fontSize: "0.75rem" }}
+                              onClick={() => copyToClipboard(formatUrl(profile.website_url3), "Portfolio Link")}
+                              className="btn btn-sm btn-light border rounded-pill px-2.5 py-1.5 d-inline-flex align-items-center gap-1 text-muted"
+                              style={{ fontSize: "0.78rem" }}
                               title="Copy link"
                             >
-                              <FaCopy size={10} />
+                              <FaCopy size={11} />
                               <span className="d-none d-sm-inline">Copy</span>
                             </button>
                             <a
@@ -765,35 +785,24 @@ function Profile() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="btn btn-sm px-3.5 py-1.5 rounded-pill font-weight-bold text-white d-inline-flex align-items-center gap-1.5 shadow-sm"
-                              style={{
-                                fontSize: "0.82rem",
-                                background: "#005DA6",
-                                border: "none",
-                              }}
+                              style={{ fontSize: "0.82rem", background: "#005DA6", border: "none" }}
                             >
                               <span>Visit Website</span>
                               <FaExternalLinkAlt size={10} />
                             </a>
-                          </div>
-                        </div>
-                      )}
+                          </>
+                        ) : isOwnProfile ? (
+                          <button
+                            onClick={() => setEdit(true)}
+                            className="btn btn-sm btn-outline-info rounded-pill px-3 py-1 font-weight-bold"
+                            style={{ fontSize: "0.78rem" }}
+                          >
+                            + Connect
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                  ) : (
-                    <div
-                      className="p-3.5 rounded-3 text-center text-muted"
-                      style={{
-                        background: "var(--ib-bg-surface-secondary)",
-                        border: "1px dashed var(--ib-border)",
-                        borderRadius: "12px",
-                      }}
-                    >
-                      <p className="mb-0" style={{ fontSize: "0.86rem" }}>
-                        {isOwnProfile
-                          ? "No social or professional links added yet. Click 'Edit Profile' to connect your LinkedIn, GitHub, or Portfolio."
-                          : "No professional links added by this member yet."}
-                      </p>
-                    </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Personal & Academic Details Card */}
