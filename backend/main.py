@@ -14,7 +14,7 @@ from src.routes.profile_router import router as profile_router
 from src.routes.post_router import router as post_router
 from fastapi.middleware.cors import CORSMiddleware
 
-origins = ["http://localhost:5173"]
+origins = ["http://localhost:5173","https://fullstack-alumni-portal-project-git-main-madhur3.vercel.app"]
 
 app = FastAPI()
 
