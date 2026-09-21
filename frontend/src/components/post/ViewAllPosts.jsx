@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import axiosInstance from "../axios-config/api";
 import { useDispatch, useSelector } from "react-redux";
 import { getProfile, setCategoryFilter } from "../redux-config/UserSlice";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   FaUser,
   FaPlus,
   FaLayerGroup,
-  FaInfoCircle,
   FaCalendarAlt,
   FaTimes,
   FaClock,
@@ -18,6 +17,15 @@ import {
   FaShieldAlt,
   FaCheckCircle,
   FaBullhorn,
+  FaExpandAlt,
+  FaGraduationCap,
+  FaExternalLinkAlt,
+  FaBriefcase,
+  FaTag,
+  FaFilter,
+  FaSlidersH,
+  FaUndo,
+  FaSearch,
 } from "react-icons/fa";
 
 function ViewAllPosts({ showTopBanner = true }) {
@@ -26,10 +34,21 @@ function ViewAllPosts({ showTopBanner = true }) {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
 
+  // Search Params from URL (Navbar Search Integration)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSearch = searchParams.get("search") || "";
+  const urlPostId = searchParams.get("postId") || "";
+
+  // Selected post for Full Reader Modal
+  const [activePost, setActivePost] = useState(null);
+
+  // Filter Modal / Drawer State
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
   // Date Filter & Sort States
   const [dateFilter, setDateFilter] = useState("all");
   const [customDate, setCustomDate] = useState("");
-  const [sortOrder, setSortOrder] = useState("newest"); // "newest" (new to old) or "oldest" (old to new)
+  const [sortOrder, setSortOrder] = useState("newest"); // "newest" or "oldest"
 
   const { isLoggedIn, currentUser, profile_data, selectedCategory } = useSelector((store) => store.user);
   const dispatch = useDispatch();
@@ -42,14 +61,11 @@ function ViewAllPosts({ showTopBanner = true }) {
       profile_data?.role === "Admin" ||
       localStorage.getItem("is_admin") === "true" ||
       sessionStorage.getItem("admin_active") === "true");
+
   const isAlumni =
     isLoggedIn &&
     (profile_data?.role === "Alumni" || currentUser?.role === "Alumni");
-  const isStudent =
-    isLoggedIn &&
-    (profile_data?.role === "Student" || currentUser?.role === "Student") &&
-    !isAlumni &&
-    !isAdmin;
+
   const canPost = isAlumni || isAdmin;
 
   useEffect(() => {
@@ -59,13 +75,34 @@ function ViewAllPosts({ showTopBanner = true }) {
     }
   }, []);
 
-  // Filter & sort posts whenever selectedCategory, dateFilter, customDate, or sortOrder changes
+    // Auto-open post reader modal if ?postId=ID is present in URL
+  useEffect(() => {
+    if (urlPostId && allPosts.length > 0) {
+      const found = allPosts.find((p) => String(p.id) === String(urlPostId));
+      if (found) {
+        setActivePost(found);
+      }
+    }
+  }, [urlPostId, allPosts]);
+
+  // Filter & sort posts whenever selectedCategory, dateFilter, customDate, sortOrder, or urlSearch changes
   useEffect(() => {
     let filtered = [...allPosts];
 
-    // 1. Category Filter
-    // When "General" (All Posts) is selected, show all posts (General, Event, Announcement).
-    // If a specific category like "Event" or "Announcement" is selected, filter strictly by that category.
+    // 1. Search Filter from URL
+    if (urlSearch && urlSearch.trim()) {
+      const q = urlSearch.trim().toLowerCase();
+      filtered = filtered.filter((post) => {
+        const matchTitle = post.title && post.title.toLowerCase().includes(q);
+        const matchContent = post.content && post.content.toLowerCase().includes(q);
+        const matchAuthor = post.user_name && post.user_name.toLowerCase().includes(q);
+        const matchCategory = post.category && post.category.toLowerCase().includes(q);
+        const matchBatch = post.user_batch && post.user_batch.toLowerCase().includes(q);
+        return matchTitle || matchContent || matchAuthor || matchCategory || matchBatch;
+      });
+    }
+
+    // 2. Category Filter
     const targetCat = selectedCategory || "General";
     if (targetCat.toLowerCase() !== "general" && targetCat.toLowerCase() !== "all") {
       filtered = filtered.filter((post) => {
@@ -74,7 +111,7 @@ function ViewAllPosts({ showTopBanner = true }) {
       });
     }
 
-    // 2. Date Filter
+    // 3. Date Filter
     if (dateFilter !== "all") {
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -109,7 +146,7 @@ function ViewAllPosts({ showTopBanner = true }) {
       }
     }
 
-    // 3. Date Sorting (Newest to Oldest or Oldest to Newest)
+    // 4. Date Sorting
     filtered.sort((a, b) => {
       const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
       const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
@@ -117,7 +154,7 @@ function ViewAllPosts({ showTopBanner = true }) {
     });
 
     setPosts(filtered);
-  }, [selectedCategory, dateFilter, customDate, sortOrder, allPosts]);
+  }, [selectedCategory, dateFilter, customDate, sortOrder, allPosts, urlSearch]);
 
   const loadProfile = async () => {
     try {
@@ -145,7 +182,8 @@ function ViewAllPosts({ showTopBanner = true }) {
     }
   };
 
-  const handleDeletePost = async (postId) => {
+  const handleDeletePost = async (postId, e) => {
+    if (e) e.stopPropagation();
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
     setDeletingId(postId);
@@ -157,6 +195,7 @@ function ViewAllPosts({ showTopBanner = true }) {
       toast.success("Post deleted successfully");
       setAllPosts((prev) => prev.filter((p) => p.id !== postId));
       setPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (activePost?.id === postId) setActivePost(null);
     } catch (err) {
       console.error("Error deleting post:", err);
       toast.error(err?.response?.data?.detail || "Failed to delete post. Please try again.");
@@ -170,524 +209,1081 @@ function ViewAllPosts({ showTopBanner = true }) {
     setCustomDate("");
   };
 
+  const clearAllFilters = () => {
+    setDateFilter("all");
+    setCustomDate("");
+    dispatch(setCategoryFilter("General"));
+  };
+
+  const isDateFiltered = dateFilter !== "all" || customDate !== "";
+  const isCategoryFiltered = selectedCategory && selectedCategory.toLowerCase() !== "general" && selectedCategory.toLowerCase() !== "all";
+  const activeFilterCount = (isDateFiltered ? 1 : 0) + (isCategoryFiltered ? 1 : 0);
+
+  const formatPostDate = (dateStr) => {
+    if (!dateStr) return "Recently";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return "Recently";
+    }
+  };
+
+  // Helper for dynamic category badge styles
+  const getCategoryBadge = (category = "General") => {
+    const cat = category.toLowerCase();
+    if (cat.includes("announc") || cat.includes("official")) {
+      return {
+        label: category,
+        icon: <FaBullhorn size={11} />,
+        bg: "rgba(79, 70, 229, 0.12)",
+        color: "#4F46E5",
+        border: "1px solid rgba(79, 70, 229, 0.28)",
+      };
+    }
+    if (cat.includes("job") || cat.includes("career") || cat.includes("referral")) {
+      return {
+        label: category,
+        icon: <FaBriefcase size={11} />,
+        bg: "rgba(16, 185, 129, 0.12)",
+        color: "#059669",
+        border: "1px solid rgba(16, 185, 129, 0.28)",
+      };
+    }
+    if (cat.includes("event") || cat.includes("meetup") || cat.includes("webinar")) {
+      return {
+        label: category,
+        icon: <FaCalendarAlt size={11} />,
+        bg: "rgba(245, 158, 11, 0.12)",
+        color: "#D97706",
+        border: "1px solid rgba(245, 158, 11, 0.28)",
+      };
+    }
+    return {
+      label: category,
+      icon: <FaTag size={10} />,
+      bg: "rgba(228, 35, 19, 0.09)",
+      color: "var(--ib-primary, #E42313)",
+      border: "1px solid rgba(228, 35, 19, 0.22)",
+    };
+  };
+
+  const CATEGORY_OPTIONS = [
+    { id: "General", label: "General", icon: FaTag },
+    { id: "Announcement", label: "Announcement", icon: FaBullhorn },
+    { id: "Event", label: "Event", icon: FaCalendarAlt },
+    { id: "Jobs", label: "Jobs / Referral", icon: FaBriefcase },
+    { id: "all", label: "All Categories", icon: FaLayerGroup },
+  ];
+
+  const DATE_OPTIONS = [
+    { id: "all", label: "All Time" },
+    { id: "today", label: "Today" },
+    { id: "this_week", label: "This Week" },
+    { id: "this_month", label: "This Month" },
+    { id: "custom", label: "Specific Date" },
+  ];
+
   return (
     <div className="w-100">
-      {/* Role-Based Top Create Box for Alumni & Admin */}
-      {showTopBanner && (
-        canPost ? (
-          <div
-            className="ib-card p-4 mb-3.5 d-flex align-items-center justify-content-between flex-wrap gap-3"
-            style={{
-              borderRadius: "16px",
-              border: isAdmin ? "1.5px solid rgba(79, 70, 229, 0.35)" : "1px solid var(--ib-border)",
-              background: isAdmin ? "linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(6, 182, 212, 0.04) 100%)" : "var(--ib-bg-surface)",
-            }}
-          >
-            <div className="d-flex align-items-center gap-3">
-              <div
-                style={{
-                  width: "46px",
-                  height: "46px",
-                  borderRadius: "50%",
-                  background: isAdmin ? "linear-gradient(135deg, #4F46E5, #06B6D4)" : "rgba(228, 35, 19, 0.12)",
-                  color: "#FFF",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  boxShadow: isAdmin ? "0 4px 12px rgba(79, 70, 229, 0.3)" : "none",
-                }}
-              >
-                {isAdmin ? (
-                  <FaShieldAlt size={19} />
-                ) : profile_data?.name ? (
-                  profile_data.name.charAt(0).toUpperCase()
-                ) : (
-                  <FaUser size={18} />
-                )}
-              </div>
-              <div>
-                <div className="font-weight-bold d-flex align-items-center gap-2" style={{ fontSize: "0.96rem" }}>
-                  <span>
-                    {isAdmin
-                      ? "Admin Publisher: Share Official Announcement / Post"
-                      : "Share an announcement, event, or referral"}
-                  </span>
-                  {isAdmin && (
-                    <span
-                      className="badge px-2 py-0.5 rounded-pill font-weight-bold"
-                      style={{ background: "#4F46E5", color: "#FFF", fontSize: "0.68rem" }}
-                    >
-                      Official Admin
-                    </span>
-                  )}
-                </div>
-                <small className="text-muted" style={{ fontSize: "0.82rem" }}>
-                  {isAdmin
-                    ? "Posts by Administrator will be prominently highlighted to all members."
-                    : "Post directly to all InfoBeans Foundation students and alumni."}
-                </small>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate("/post")}
-              className="btn px-4 py-2 rounded-pill d-flex align-items-center gap-2 font-weight-bold text-white shadow-sm"
+      {/* Top Create Button for Alumni & Admin */}
+      {showTopBanner && canPost && (
+        <div
+          className="ib-card p-3 p-sm-3.5 mb-3.5 d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-3"
+          style={{
+            borderRadius: "16px",
+            border: isAdmin ? "1.5px solid rgba(79, 70, 229, 0.35)" : "1px solid var(--ib-border)",
+            background: isAdmin ? "linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(6, 182, 212, 0.04) 100%)" : "var(--ib-bg-surface)",
+          }}
+        >
+          <div className="d-flex align-items-center gap-3 w-100 w-sm-auto">
+            <div
               style={{
-                fontSize: "0.88rem",
-                background: isAdmin
-                  ? "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)"
-                  : "var(--ib-primary)",
-                border: "none",
-                boxShadow: "0 4px 14px rgba(79, 70, 229, 0.3)",
+                width: "42px",
+                height: "42px",
+                minWidth: "42px",
+                borderRadius: "50%",
+                background: isAdmin ? "linear-gradient(135deg, #4F46E5, #06B6D4)" : "rgba(228, 35, 19, 0.12)",
+                color: isAdmin ? "#FFF" : "var(--ib-primary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "17px",
+                fontWeight: 700,
+                flexShrink: 0,
               }}
             >
-              <FaPlus size={11} />
-              <span>Create Post</span>
-            </button>
-          </div>
-        ) : isStudent ? (
-          <div
-            className="ib-card p-3 mb-3.5"
-            style={{
-              background: "rgba(0, 93, 166, 0.08)",
-              borderColor: "rgba(0, 93, 166, 0.25)",
-              borderRadius: "14px",
-            }}
-          >
-            <div className="d-flex align-items-center gap-2">
-              <FaInfoCircle style={{ color: "#005DA6" }} size={18} />
-              <div style={{ fontSize: "0.84rem", color: "var(--ib-text-main)", lineHeight: 1.4 }}>
-                <strong>Student Mode:</strong> Browse updates and referrals posted by InfoBeans Foundation Alumni & Admins.
+              {isAdmin ? <FaShieldAlt size={18} /> : profile_data?.name ? profile_data.name.charAt(0).toUpperCase() : <FaUser size={16} />}
+            </div>
+            <div style={{ minWidth: 0, overflow: "hidden" }}>
+              <div className="font-weight-bold text-truncate" style={{ fontSize: "0.95rem", color: "var(--ib-text-main)" }}>
+                {isAdmin ? "Publish Official Announcement" : "Publish a post, job referral, or event"}
               </div>
+              <small className="text-muted d-block text-truncate" style={{ fontSize: "0.8rem" }}>
+                Reach all InfoBeans Foundation scholars and graduates
+              </small>
             </div>
           </div>
-        ) : null
+
+          <button
+            onClick={() => navigate("/post")}
+            className="btn btn-sm px-4 py-2 rounded-pill d-flex align-items-center justify-content-center gap-1.5 font-weight-bold text-white shadow-sm w-100 w-sm-auto"
+            style={{
+              fontSize: "0.85rem",
+              background: isAdmin ? "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)" : "var(--ib-primary, #E42313)",
+              border: "none",
+              transition: "transform 0.15s ease",
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            <FaPlus size={11} />
+            <span>Create Post</span>
+          </button>
+        </div>
       )}
 
-      {/* Filter & Sort Control Bar */}
-      <div
-        className="ib-card p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2.5"
-        style={{ borderRadius: "14px" }}
-      >
-        {/* Left: Date Filter Presets */}
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          <div className="d-flex align-items-center gap-1.5 text-muted font-weight-bold" style={{ fontSize: "0.8rem", textTransform: "uppercase" }}>
-            <FaCalendarAlt size={13} style={{ color: "#E42313" }} />
-            <span>Date:</span>
+      {/* Active Search Query Filter Banner */}
+      {urlSearch && (
+        <div
+          className="d-flex align-items-center justify-content-between p-3 mb-3.5 shadow-sm"
+          style={{
+            background: "rgba(228, 35, 19, 0.08)",
+            border: "1.5px solid rgba(228, 35, 19, 0.3)",
+            borderRadius: "14px",
+          }}
+        >
+          <div className="d-flex align-items-center gap-2.5 overflow-hidden">
+            <div
+              style={{
+                width: "34px",
+                height: "34px",
+                borderRadius: "50%",
+                background: "#E42313",
+                color: "#FFF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <FaSearch size={13} />
+            </div>
+            <div className="overflow-hidden">
+              <div className="font-weight-bold text-truncate" style={{ fontSize: "0.88rem", color: "var(--ib-text-main)" }}>
+                Search results for: <span style={{ color: "#E42313" }}>"{urlSearch}"</span>
+              </div>
+              <small className="text-muted d-block text-truncate" style={{ fontSize: "0.75rem" }}>
+                Showing {posts.length} matching {posts.length === 1 ? "post" : "posts"}
+              </small>
+            </div>
           </div>
 
-          <div className="d-flex align-items-center gap-1.5 flex-wrap">
-            {[
-              { id: "all", label: "All Time" },
-              { id: "today", label: "Today" },
-              { id: "this_week", label: "This Week" },
-              { id: "this_month", label: "This Month" },
-              { id: "custom", label: "Pick Date" },
-            ].map((option) => {
-              const isActive = dateFilter === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setDateFilter(option.id)}
-                  className="btn btn-sm rounded-pill font-weight-bold"
-                  style={{
-                    fontSize: "0.78rem",
-                    padding: "4px 12px",
-                    background: isActive ? "#E42313" : "var(--ib-bg-surface-secondary)",
-                    color: isActive ? "#FFF" : "var(--ib-text-main)",
-                    border: "1px solid",
-                    borderColor: isActive ? "#E42313" : "var(--ib-border)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => {
+              searchParams.delete("search");
+              setSearchParams(searchParams);
+            }}
+            className="btn btn-sm btn-outline-danger rounded-pill px-3 py-1 font-weight-bold d-inline-flex align-items-center gap-1.5 flex-shrink-0"
+            style={{ fontSize: "0.78rem" }}
+          >
+            <FaTimes size={10} />
+            <span>Clear</span>
+          </button>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* 2. Compact & Responsive Feed Toolbar with Filter Trigger    */}
+      {/* ============================================================ */}
+      <div
+        className="ib-card p-2.5 p-sm-3 mb-3.5 d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-sm"
+        style={{ borderRadius: "14px", border: "1px solid var(--ib-border)", background: "var(--ib-bg-surface)" }}
+      >
+        {/* Left: Active Filter Indicators & Post Count */}
+        <div className="d-flex align-items-center gap-2 flex-wrap" style={{ minWidth: 0 }}>
+          <span
+            className="badge px-2.5 py-1.5 rounded-pill font-weight-bold"
+            style={{
+              fontSize: "0.78rem",
+              background: "var(--ib-bg-surface-secondary)",
+              color: "var(--ib-text-main)",
+              border: "1px solid var(--ib-border)",
+            }}
+          >
+            {posts.length} {posts.length === 1 ? "Post" : "Posts"}
+          </span>
+
+          {/* Active Category Chip */}
+          {isCategoryFiltered && (
+            <span
+              className="badge px-2.5 py-1.5 rounded-pill font-weight-bold d-inline-flex align-items-center gap-1.5"
+              style={{
+                fontSize: "0.75rem",
+                background: "rgba(228, 35, 19, 0.1)",
+                color: "var(--ib-primary, #E42313)",
+                border: "1px solid rgba(228, 35, 19, 0.25)",
+              }}
+            >
+              <FaTag size={9} />
+              <span>{selectedCategory}</span>
+              <button
+                type="button"
+                onClick={() => dispatch(setCategoryFilter("General"))}
+                style={{ background: "none", border: "none", color: "inherit", padding: 0, cursor: "pointer", display: "inline-flex" }}
+                title="Remove category filter"
+              >
+                <FaTimes size={10} />
+              </button>
+            </span>
+          )}
+
+          {/* Active Date Chip */}
+          {isDateFiltered && (
+            <span
+              className="badge px-2.5 py-1.5 rounded-pill font-weight-bold d-inline-flex align-items-center gap-1.5"
+              style={{
+                fontSize: "0.75rem",
+                background: "rgba(0, 93, 166, 0.1)",
+                color: "#005DA6",
+                border: "1px solid rgba(0, 93, 166, 0.25)",
+              }}
+            >
+              <FaCalendarAlt size={9} />
+              <span>
+                {dateFilter === "custom" && customDate
+                  ? customDate
+                  : dateFilter === "today"
+                  ? "Today"
+                  : dateFilter === "this_week"
+                  ? "This Week"
+                  : "This Month"}
+              </span>
+              <button
+                type="button"
+                onClick={clearDateFilter}
+                style={{ background: "none", border: "none", color: "inherit", padding: 0, cursor: "pointer", display: "inline-flex" }}
+                title="Remove date filter"
+              >
+                <FaTimes size={10} />
+              </button>
+            </span>
+          )}
         </div>
 
-        {/* Right: Custom Date Picker, Sort Toggle & Post Counter */}
-        <div className="d-flex align-items-center gap-2.5 flex-wrap ml-auto">
-          {dateFilter === "custom" && (
-            <input
-              type="date"
-              value={customDate}
-              onChange={(e) => setCustomDate(e.target.value)}
-              className="form-control form-control-sm rounded-pill"
-              style={{
-                fontSize: "0.8rem",
-                width: "140px",
-                height: "32px",
-                padding: "2px 10px",
-              }}
-            />
-          )}
+        {/* Right: Filter Trigger Button & Quick Sort Toggle */}
+        <div className="d-flex align-items-center gap-2 ms-auto">
+          {/* Main Filter Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setShowFilterModal(true)}
+            className="btn btn-sm d-flex align-items-center gap-1.5 px-3 py-1.5 rounded-pill font-weight-bold"
+            style={{
+              fontSize: "0.8rem",
+              background: activeFilterCount > 0 ? "var(--ib-primary, #E42313)" : "var(--ib-bg-surface-secondary)",
+              color: activeFilterCount > 0 ? "#FFF" : "var(--ib-text-main)",
+              border: "1px solid",
+              borderColor: activeFilterCount > 0 ? "var(--ib-primary, #E42313)" : "var(--ib-border)",
+              boxShadow: activeFilterCount > 0 ? "0 2px 8px rgba(228, 35, 19, 0.28)" : "none",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            title="Open Filter & Sort Options"
+          >
+            <FaSlidersH size={12} />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span
+                className="badge rounded-circle bg-white text-danger d-inline-flex align-items-center justify-content-center"
+                style={{ width: "16px", height: "16px", fontSize: "0.68rem", fontWeight: 800, padding: 0 }}
+              >
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
-          {dateFilter !== "all" && (
-            <button
-              onClick={clearDateFilter}
-              className="btn btn-sm btn-outline-secondary rounded-pill d-flex align-items-center gap-1"
-              style={{ fontSize: "0.75rem", padding: "3px 10px", borderColor: "var(--ib-border)" }}
-              title="Reset date filter"
-            >
-              <FaTimes size={10} />
-              <span>Reset</span>
-            </button>
-          )}
-
-          {/* Sort Toggle Button (New to Old / Old to New) */}
-          <div className="d-flex align-items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"))}
-              className="btn btn-sm d-flex align-items-center gap-1.5 px-3 py-1.5 rounded-pill font-weight-bold"
-              style={{
-                fontSize: "0.8rem",
-                background: "var(--ib-bg-surface-secondary)",
-                color: "var(--ib-text-main)",
-                border: "1px solid var(--ib-border)",
-                transition: "all 0.15s ease",
-                cursor: "pointer",
-              }}
-              title={`Sorting: ${sortOrder === "newest" ? "Newest First" : "Oldest First"} (Click to switch)`}
-            >
-              {sortOrder === "newest" ? (
-                <>
-                  <FaSortAmountDown size={12} color="#E42313" />
-                  <span>New to Old</span>
-                </>
-              ) : (
-                <>
-                  <FaSortAmountUp size={12} color="#005DA6" />
-                  <span>Old to New</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="text-muted font-weight-bold" style={{ fontSize: "0.78rem" }}>
-            {posts.length} {posts.length === 1 ? "Post" : "Posts"}
-          </div>
+          {/* Quick Sort Toggle */}
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"))}
+            className="btn btn-sm d-flex align-items-center gap-1.5 px-3 py-1.5 rounded-pill font-weight-bold"
+            style={{
+              fontSize: "0.8rem",
+              background: "var(--ib-bg-surface-secondary)",
+              color: "var(--ib-text-main)",
+              border: "1px solid var(--ib-border)",
+              cursor: "pointer",
+            }}
+            title={`Sorting: ${sortOrder === "newest" ? "Newest First" : "Oldest First"}`}
+          >
+            {sortOrder === "newest" ? (
+              <>
+                <FaSortAmountDown size={11} color="#E42313" />
+                <span className="d-none d-sm-inline">Newest</span>
+              </>
+            ) : (
+              <>
+                <FaSortAmountUp size={11} color="#005DA6" />
+                <span className="d-none d-sm-inline">Oldest</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Direct Posts Stream */}
+      {/* ============================================================ */}
+      {/* 3. Interactive Filter & Sort Drawer / Modal                 */}
+      {/* ============================================================ */}
+      {showFilterModal && (
+        <div
+          className="modal fade show d-flex align-items-center justify-content-center p-2 p-sm-3"
+          tabIndex="-1"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(10, 15, 29, 0.75)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            zIndex: 1055,
+            overflowY: "auto",
+          }}
+          onClick={() => setShowFilterModal(false)}
+        >
+          <div
+            className="modal-content border-0 overflow-hidden my-auto"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "520px",
+              width: "100%",
+              borderRadius: "22px",
+              background: "var(--ib-bg-surface)",
+              color: "var(--ib-text-main)",
+              border: "1px solid var(--ib-border)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
+              animation: "modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-4 py-3 border-bottom d-flex align-items-center justify-content-between"
+              style={{ background: "var(--ib-bg-surface)", borderColor: "var(--ib-border)" }}
+            >
+              <div className="d-flex align-items-center gap-2">
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "50%",
+                    background: "rgba(228, 35, 19, 0.12)",
+                    color: "var(--ib-primary, #E42313)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FaSlidersH size={15} />
+                </div>
+                <div>
+                  <h5 className="brand-font font-weight-bold mb-0" style={{ fontSize: "1.05rem", color: "var(--ib-text-main)" }}>
+                    Filter & Sort Feed
+                  </h5>
+                  <small className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    Select categories, date ranges, or sort order
+                  </small>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center text-muted"
+                onClick={() => setShowFilterModal(false)}
+                style={{ width: "32px", height: "32px", padding: 0 }}
+                title="Close filter"
+              >
+                <FaTimes size={13} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4" style={{ maxHeight: "68vh", overflowY: "auto" }}>
+              {/* Category Options */}
+              <div className="mb-4">
+                <label className="text-muted font-weight-bold mb-2 d-block" style={{ fontSize: "0.78rem", textTransform: "uppercase" }}>
+                  Category
+                </label>
+                <div className="d-flex flex-wrap gap-2">
+                  {CATEGORY_OPTIONS.map((cat) => {
+                    const isSelected = (selectedCategory || "General").toLowerCase() === cat.id.toLowerCase();
+                    const CatIcon = cat.icon;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => dispatch(setCategoryFilter(cat.id))}
+                        className="btn btn-sm rounded-pill font-weight-bold d-inline-flex align-items-center gap-1.5"
+                        style={{
+                          fontSize: "0.8rem",
+                          padding: "5px 14px",
+                          background: isSelected ? "var(--ib-primary, #E42313)" : "var(--ib-bg-surface-secondary)",
+                          color: isSelected ? "#FFF" : "var(--ib-text-main)",
+                          border: "1px solid",
+                          borderColor: isSelected ? "var(--ib-primary, #E42313)" : "var(--ib-border)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <CatIcon size={11} />
+                        <span>{cat.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Date Filter Options */}
+              <div className="mb-4">
+                <label className="text-muted font-weight-bold mb-2 d-block" style={{ fontSize: "0.78rem", textTransform: "uppercase" }}>
+                  Date Published
+                </label>
+                <div className="d-flex flex-wrap gap-2 mb-2.5">
+                  {DATE_OPTIONS.map((opt) => {
+                    const isSelected = dateFilter === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setDateFilter(opt.id)}
+                        className="btn btn-sm rounded-pill font-weight-bold d-inline-flex align-items-center gap-1.5"
+                        style={{
+                          fontSize: "0.8rem",
+                          padding: "5px 14px",
+                          background: isSelected ? "#005DA6" : "var(--ib-bg-surface-secondary)",
+                          color: isSelected ? "#FFF" : "var(--ib-text-main)",
+                          border: "1px solid",
+                          borderColor: isSelected ? "#005DA6" : "var(--ib-border)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <FaCalendarAlt size={10} />
+                        <span>{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Specific Date Picker Input */}
+                {dateFilter === "custom" && (
+                  <div className="mt-2 p-2.5 rounded-lg" style={{ background: "var(--ib-bg-surface-secondary)", border: "1px solid var(--ib-border)" }}>
+                    <label className="text-muted font-weight-bold mb-1 d-block" style={{ fontSize: "0.74rem" }}>
+                      Select Calendar Date:
+                    </label>
+                    <input
+                      type="date"
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      className="form-control form-control-sm rounded-pill"
+                      style={{ fontSize: "0.84rem", maxWidth: "200px" }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Sort Order Options */}
+              <div className="mb-2">
+                <label className="text-muted font-weight-bold mb-2 d-block" style={{ fontSize: "0.78rem", textTransform: "uppercase" }}>
+                  Sort Feed By
+                </label>
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder("newest")}
+                    className="btn btn-sm rounded-pill font-weight-bold d-inline-flex align-items-center gap-2 flex-1"
+                    style={{
+                      fontSize: "0.82rem",
+                      padding: "6px 16px",
+                      background: sortOrder === "newest" ? "var(--ib-bg-surface-secondary)" : "transparent",
+                      color: "var(--ib-text-main)",
+                      border: "1.5px solid",
+                      borderColor: sortOrder === "newest" ? "var(--ib-primary, #E42313)" : "var(--ib-border)",
+                    }}
+                  >
+                    <FaSortAmountDown size={12} color="#E42313" />
+                    <span>Newest First</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder("oldest")}
+                    className="btn btn-sm rounded-pill font-weight-bold d-inline-flex align-items-center gap-2 flex-1"
+                    style={{
+                      fontSize: "0.82rem",
+                      padding: "6px 16px",
+                      background: sortOrder === "oldest" ? "var(--ib-bg-surface-secondary)" : "transparent",
+                      color: "var(--ib-text-main)",
+                      border: "1.5px solid",
+                      borderColor: sortOrder === "oldest" ? "#005DA6" : "var(--ib-border)",
+                    }}
+                  >
+                    <FaSortAmountUp size={12} color="#005DA6" />
+                    <span>Oldest First</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className="px-4 py-3 border-top d-flex align-items-center justify-content-between gap-2"
+              style={{ background: "var(--ib-bg-surface-secondary)", borderColor: "var(--ib-border)" }}
+            >
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 font-weight-bold d-inline-flex align-items-center gap-1.5"
+                style={{ fontSize: "0.8rem" }}
+              >
+                <FaUndo size={10} />
+                <span>Reset All</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="btn btn-sm px-4 py-1.5 rounded-pill font-weight-bold text-white shadow-sm"
+                style={{ fontSize: "0.82rem", background: "var(--ib-primary, #E42313)", border: "none" }}
+              >
+                Apply ({posts.length} {posts.length === 1 ? "Post" : "Posts"})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Posts Feed Stream */}
       {loading ? (
-        <div className="ib-card p-5 text-center my-4">
-          <div className="spinner-border text-danger mb-3" role="status" style={{ width: "2.5rem", height: "2.5rem" }} />
-          <div className="text-muted font-weight-bold" style={{ fontSize: "0.95rem" }}>
-            Loading posts...
+        <div className="ib-card p-4 p-sm-5 text-center my-4">
+          <div className="spinner-border text-danger mb-3" role="status" style={{ width: "2.2rem", height: "2.2rem" }} />
+          <div className="text-muted font-weight-bold" style={{ fontSize: "0.92rem" }}>
+            Loading community feed...
           </div>
         </div>
       ) : posts.length === 0 ? (
-        <div className="ib-card p-5 text-center my-4" style={{ borderRadius: "18px" }}>
+        <div className="ib-card p-4 p-sm-5 text-center my-4" style={{ borderRadius: "18px" }}>
           <div
             style={{
-              width: "60px",
-              height: "60px",
+              width: "56px",
+              height: "56px",
               borderRadius: "50%",
               background: "rgba(228, 35, 19, 0.1)",
               color: "#E42313",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              marginBottom: "14px",
+              marginBottom: "12px",
             }}
           >
-            <FaLayerGroup size={24} />
+            <FaLayerGroup size={22} />
           </div>
-          <h4 className="font-weight-bold mb-1">No posts found</h4>
-          <p className="text-muted mb-3" style={{ fontSize: "0.88rem" }}>
+          <h5 className="font-weight-bold mb-1" style={{ color: "var(--ib-text-main)" }}>
+            No posts found
+          </h5>
+          <p className="text-muted mb-3" style={{ fontSize: "0.85rem" }}>
             {dateFilter !== "all"
-              ? "No posts found for the selected date range. Try clearing the date filter."
-              : "No posts available in this category. Check back soon!"}
+              ? "No posts found for the selected date. Try resetting the date filter."
+              : "No posts available in this category."}
           </p>
-
-          <div className="d-flex justify-content-center gap-2 flex-wrap">
-            {dateFilter !== "all" && (
-              <button
-                onClick={clearDateFilter}
-                className="btn btn-outline-danger px-3.5 py-1.5 rounded-pill font-weight-bold"
-                style={{ fontSize: "0.82rem", color: "#E42313", borderColor: "#E42313" }}
-              >
-                Clear Date Filter
-              </button>
-            )}
-
-            {selectedCategory !== "General" && (
-              <button
-                onClick={() => dispatch(setCategoryFilter("General"))}
-                className="btn btn-ib-primary px-3.5 py-1.5 rounded-pill font-weight-bold"
-                style={{ fontSize: "0.82rem" }}
-              >
-                Show All Posts
-              </button>
-            )}
-          </div>
+          {dateFilter !== "all" && (
+            <button onClick={clearDateFilter} className="btn btn-outline-danger btn-sm px-3.5 py-1.5 rounded-pill font-weight-bold">
+              Reset Filters
+            </button>
+          )}
         </div>
       ) : (
-        <div className="d-flex flex-column gap-4">
+        <div className="d-flex flex-column gap-3">
           {posts.map((post) => {
             const isPostAdmin = post?.is_admin || post?.user_name === "Admin";
-
             const imageUrl = post?.image
               ? post.image.startsWith("http")
                 ? post.image
-                : `http://localhost:8000${post.image}`
+                : `${import.meta.env.VITE_API_URL}${post.image}`
               : "";
 
             const canDeleteThisPost = isAdmin || (currentUser?.id && post.user_id === currentUser.id);
+            const catBadge = getCategoryBadge(post.category);
 
             return (
               <article
                 key={post.id}
-                className="ib-card mb-4"
+                className="ib-card"
+                onClick={() => setActivePost(post)}
                 style={{
-                  borderRadius: "20px",
+                  borderRadius: "16px",
                   overflow: "hidden",
                   border: isPostAdmin
-                    ? "2px solid rgba(79, 70, 229, 0.45)"
+                    ? "1.5px solid rgba(79, 70, 229, 0.4)"
                     : "1px solid var(--ib-border)",
                   boxShadow: isPostAdmin
-                    ? "0 10px 30px rgba(79, 70, 229, 0.16)"
+                    ? "0 8px 24px rgba(79, 70, 229, 0.12)"
                     : "0 2px 10px rgba(0,0,0,0.03)",
                   position: "relative",
-                  transition: "all 0.25s ease",
+                  transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease",
+                  cursor: "pointer",
+                  background: "var(--ib-bg-surface)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = isPostAdmin
+                    ? "0 12px 30px rgba(79, 70, 229, 0.2)"
+                    : "0 8px 22px rgba(0,0,0,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = isPostAdmin
+                    ? "0 8px 24px rgba(79, 70, 229, 0.12)"
+                    : "0 2px 10px rgba(0,0,0,0.03)";
                 }}
               >
-                {/* Special Top Accent Strip for Admin Posts */}
+                {/* Admin Highlight Banner */}
                 {isPostAdmin && (
                   <div
+                    className="d-flex align-items-center justify-content-between px-3 px-sm-3.5 py-1.5"
                     style={{
-                      height: "5px",
-                      background: "linear-gradient(90deg, #4F46E5 0%, #7C3AED 40%, #EC4899 80%, #06B6D4 100%)",
-                    }}
-                  />
-                )}
-
-                {/* Admin Highlight Banner Bar */}
-                {isPostAdmin && (
-                  <div
-                    className="d-flex align-items-center justify-content-between px-4 py-2"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(79, 70, 229, 0.14) 0%, rgba(124, 58, 237, 0.08) 100%)",
-                      borderBottom: "1px solid rgba(79, 70, 229, 0.2)",
+                      background: "linear-gradient(135deg, rgba(79, 70, 229, 0.12) 0%, rgba(124, 58, 237, 0.08) 100%)",
+                      borderBottom: "1px solid rgba(79, 70, 229, 0.18)",
                     }}
                   >
-                    <div className="d-flex align-items-center gap-2" style={{ color: "#4F46E5", fontWeight: 700, fontSize: "0.82rem" }}>
-                      <FaBullhorn size={13} />
-                      <span>OFFICIAL FOUNDATION ANNOUNCEMENT</span>
+                    <div className="d-flex align-items-center gap-1.5" style={{ color: "#4F46E5", fontWeight: 700, fontSize: "0.74rem" }}>
+                      <FaBullhorn size={11} />
+                      <span>OFFICIAL ANNOUNCEMENT</span>
                     </div>
-
-                    <span
-                      className="badge px-2.5 py-1 rounded-pill font-weight-bold"
-                      style={{
-                        background: "linear-gradient(135deg, #4F46E5, #7C3AED)",
-                        color: "#FFF",
-                        fontSize: "0.7rem",
-                        boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
-                      }}
-                    >
-                      ★ Admin Verified
+                    <span className="badge bg-primary px-2 py-0.5 rounded-pill font-weight-bold" style={{ fontSize: "0.65rem" }}>
+                      Verified Admin
                     </span>
                   </div>
                 )}
 
-                {/* Author Header */}
-                <div
-                  className="d-flex align-items-center justify-content-between px-4 pt-4 pb-2.5"
-                  style={{
-                    background: isPostAdmin
-                      ? "linear-gradient(180deg, rgba(79, 70, 229, 0.04) 0%, transparent 100%)"
-                      : "transparent",
-                  }}
-                >
-                  <div className="d-flex align-items-center" style={{ gap: "16px" }}>
+                {/* Author Info Bar */}
+                <div className="p-3 p-sm-3.5 p-md-4 pb-2 d-flex align-items-center justify-content-between gap-2">
+                  <Link
+                    to={post.user_id ? `/profile/${post.user_id}` : "#"}
+                    onClick={(e) => e.stopPropagation()}
+                    className="d-flex align-items-center text-decoration-none text-reset"
+                    style={{ gap: "10px", minWidth: 0, flex: 1, overflow: "hidden" }}
+                    title={`View ${post.user_name || "Author"}'s profile & posts`}
+                  >
                     {/* Author Avatar */}
                     <div
                       style={{
-                        width: isPostAdmin ? "52px" : "48px",
-                        height: isPostAdmin ? "52px" : "48px",
+                        width: "42px",
+                        height: "42px",
+                        minWidth: "42px",
                         borderRadius: "50%",
                         background: isPostAdmin
-                          ? "linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #06B6D4 100%)"
+                          ? "linear-gradient(135deg, #4F46E5, #06B6D4)"
                           : "linear-gradient(135deg, #E42313, #EA1B3D)",
                         color: "#FFF",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: isPostAdmin ? "22px" : "19px",
+                        fontSize: "17px",
                         fontWeight: 700,
-                        boxShadow: isPostAdmin
-                          ? "0 4px 16px rgba(79, 70, 229, 0.45)"
-                          : "0 3px 10px rgba(228, 35, 19, 0.28)",
-                        border: isPostAdmin ? "2px solid #FFF" : "none",
                         flexShrink: 0,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                       }}
                     >
                       {isPostAdmin ? (
-                        <FaShieldAlt size={22} />
+                        <FaShieldAlt size={16} />
                       ) : post.user_name ? (
                         post.user_name.charAt(0).toUpperCase()
                       ) : (
-                        <FaUser size={18} />
+                        <FaUser size={15} />
                       )}
                     </div>
 
-                    {/* Author Name & Batch */}
-                    <div className="d-flex flex-column" style={{ gap: "4px" }}>
-                      <div className="d-flex align-items-center gap-2 flex-wrap">
-                        <h5
-                          className="mb-0 font-weight-bold brand-font"
-                          style={{
-                            fontSize: isPostAdmin ? "1.15rem" : "1.08rem",
-                            lineHeight: 1.25,
-                            color: isPostAdmin ? "var(--ib-text-main)" : "inherit",
-                          }}
-                        >
-                          {isPostAdmin ? "InfoBeans Foundation Administration" : (post.user_name || "Community Member")}
-                        </h5>
-
+                    {/* Author Name, Batch, and Role */}
+                    <div style={{ minWidth: 0, overflow: "hidden" }}>
+                      <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                        <span className="brand-font font-weight-bold text-truncate" style={{ fontSize: "0.95rem", lineHeight: 1.25, color: "var(--ib-text-main)", maxWidth: "180px" }}>
+                          {isPostAdmin ? "InfoBeans Administration" : (post.user_name || "Community Member")}
+                        </span>
                         {isPostAdmin && (
-                          <span
-                            className="d-inline-flex align-items-center gap-1 font-weight-bold"
-                            style={{ color: "#4F46E5", fontSize: "0.82rem" }}
-                            title="Verified Administrator"
-                          >
-                            <FaCheckCircle size={14} />
-                          </span>
+                          <FaCheckCircle size={12} style={{ color: "#4F46E5" }} title="Verified Admin" />
                         )}
+                        <span
+                          className={`badge rounded-pill px-2 py-0.5 font-weight-bold ${
+                            isPostAdmin ? "bg-primary text-white" : "badge-alumni"
+                          }`}
+                          style={{ fontSize: "0.65rem" }}
+                        >
+                          {isPostAdmin ? "Admin" : "Alumni"}
+                        </span>
                       </div>
 
-                      <div
-                        className="d-inline-flex align-items-center text-muted"
-                        style={{
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          letterSpacing: "0.02em",
-                        }}
-                      >
-                        <span>
-                          {isPostAdmin ? "Official Management Desk" : (post.user_batch || "Community Member")}
+                      <div className="text-muted d-flex align-items-center gap-1.5 mt-0.5" style={{ fontSize: "0.76rem" }}>
+                        <span className="text-truncate" style={{ maxWidth: "120px" }}>
+                          {isPostAdmin ? "Official Desk" : (post.user_batch || "Cohort")}
+                        </span>
+                        <span>•</span>
+                        <span className="d-inline-flex align-items-center gap-1 text-nowrap">
+                          <FaClock size={9} />
+                          {formatPostDate(post.updated_at || post.created_at)}
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
 
-                  {/* Right Header: Delete Action Button for Admin / Owner */}
+                  {/* Actions (Delete if permitted) */}
                   {canDeleteThisPost && (
-                    <button
-                      onClick={() => handleDeletePost(post.id)}
-                      disabled={deletingId === post.id}
-                      className="btn btn-sm d-flex align-items-center gap-1.5 rounded-pill px-3 py-1.5"
-                      style={{
-                        fontSize: "0.78rem",
-                        fontWeight: 600,
-                        border: "1px solid rgba(228, 35, 19, 0.35)",
-                        background: "rgba(228, 35, 19, 0.08)",
-                        color: "#E42313",
-                        transition: "all 0.15s ease",
-                        cursor: "pointer",
-                      }}
-                      title={isAdmin ? "Delete this post as Administrator" : "Delete your post"}
-                    >
-                      <FaTrashAlt size={11} />
-                      <span>{deletingId === post.id ? "Deleting..." : "Delete"}</span>
-                    </button>
+                    <div className="d-flex align-items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => handleDeletePost(post.id, e)}
+                        disabled={deletingId === post.id}
+                        className="btn btn-sm btn-outline-danger rounded-circle d-flex align-items-center justify-content-center"
+                        style={{ width: "32px", height: "32px", padding: 0 }}
+                        title="Delete post"
+                      >
+                        <FaTrashAlt size={11} />
+                      </button>
+                    </div>
                   )}
                 </div>
 
-                {/* Post Title & Text */}
-                <div className="px-4 pt-2 pb-3.5">
-                  <h3
-                    className="brand-font mb-2.5 font-weight-bold"
-                    style={{
-                      fontSize: isPostAdmin ? "1.28rem" : "1.2rem",
-                      lineHeight: 1.4,
-                      color: isPostAdmin ? "#4F46E5" : "inherit",
-                    }}
-                  >
-                    {post.title}
-                  </h3>
+                {/* Post Title & Content Preview */}
+                <div className="px-3 px-sm-3.5 px-md-4 pt-1 pb-3">
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <span
+                      className="d-inline-flex align-items-center gap-1.5 rounded-pill font-weight-bold"
+                      style={{
+                        fontSize: "0.72rem",
+                        padding: "3px 10px",
+                        background: catBadge.bg,
+                        color: catBadge.color,
+                        border: catBadge.border,
+                      }}
+                    >
+                      {catBadge.icon}
+                      <span>{catBadge.label}</span>
+                    </span>
+                  </div>
 
-                  <p
-                    className="text-secondary mb-0"
-                    style={{
-                      fontSize: "0.95rem",
-                      lineHeight: 1.68,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {post.content}
-                  </p>
+                  <h4 className="brand-font font-weight-bold mb-2 text-break-all" style={{ fontSize: "1.1rem", lineHeight: 1.35, color: "var(--ib-text-main)" }}>
+                    {post.title}
+                  </h4>
+
+                  {post.content && (
+                    <p
+                      className="mb-0 text-break-all"
+                      style={{
+                        fontSize: "0.9rem",
+                        lineHeight: 1.6,
+                        color: "var(--ib-text-muted)",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {post.content}
+                    </p>
+                  )}
                 </div>
 
-                {/* Post Image */}
+                {/* Post Image Preview */}
                 {imageUrl && (
                   <div
                     style={{
-                      background: "#1E2433",
-                      maxHeight: "520px",
+                      background: "var(--ib-bg-surface-secondary)",
+                      maxHeight: "360px",
                       overflow: "hidden",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      borderTop: "1px solid var(--ib-border)",
                     }}
                   >
                     <img
                       src={imageUrl}
                       alt={post.title}
-                      style={{ width: "100%", maxHeight: "520px", objectFit: "cover", display: "block" }}
+                      style={{ width: "100%", maxHeight: "360px", objectFit: "cover", display: "block" }}
                     />
                   </div>
                 )}
 
-                {/* Post Footer with Bottom Corner Timestamp */}
+                {/* Post Card Footer */}
                 <div
-                  className="d-flex align-items-center justify-content-between px-4 py-2.5 border-top"
-                  style={{
-                    background: isPostAdmin
-                      ? "rgba(79, 70, 229, 0.03)"
-                      : "transparent",
-                  }}
+                  className="px-3 px-sm-3.5 px-md-4 py-2.5 border-top d-flex align-items-center justify-content-between"
+                  style={{ background: "var(--ib-bg-surface-secondary)", fontSize: "0.8rem" }}
                 >
-                  <span
-                    className="badge rounded-pill px-3 py-1 font-weight-bold"
-                    style={{
-                      fontSize: "0.74rem",
-                      background: isPostAdmin
-                        ? "linear-gradient(135deg, #4F46E5, #7C3AED)"
-                        : "var(--ib-bg-surface-secondary)",
-                      color: isPostAdmin ? "#FFF" : "var(--ib-text-main)",
-                      border: isPostAdmin ? "none" : "1px solid var(--ib-border)",
-                    }}
-                  >
-                    {post.category || "General"}
+                  <span className="text-muted d-inline-flex align-items-center gap-1.5">
+                    <FaExpandAlt size={10} /> Click to open
                   </span>
-
-                  <div className="text-muted d-flex align-items-center gap-1.5" style={{ fontSize: "0.8rem" }}>
-                    <FaClock size={11} style={{ opacity: 0.6 }} />
-                    <span>
-                      {post.updated_at
-                        ? new Date(post.updated_at).toLocaleString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Recently"}
-                    </span>
-                  </div>
+                  <span className="font-weight-bold d-inline-flex align-items-center gap-1" style={{ color: "var(--ib-primary, #E42313)" }}>
+                    <span>Read Details</span>
+                    <span>→</span>
+                  </span>
                 </div>
               </article>
             );
           })}
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* Interactive Full Post Reader Modal / Popup Card             */}
+      {/* ============================================================ */}
+      {activePost && (
+        <div
+          className="modal fade show d-flex align-items-center justify-content-center p-2 p-sm-3"
+          tabIndex="-1"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(10, 15, 29, 0.78)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            zIndex: 1060,
+            overflowY: "auto",
+          }}
+          onClick={() => setActivePost(null)}
+        >
+          <div
+            className="modal-content border-0 overflow-hidden my-auto"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "760px",
+              width: "100%",
+              maxHeight: "92vh",
+              borderRadius: "20px",
+              background: "var(--ib-bg-surface)",
+              color: "var(--ib-text-main)",
+              border: "1px solid var(--ib-border)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
+              animation: "modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-3 px-sm-4 py-3 border-bottom d-flex align-items-center justify-content-between gap-2"
+              style={{
+                background: (activePost.is_admin || activePost.user_name === "Admin")
+                  ? "linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(6, 182, 212, 0.04) 100%)"
+                  : "var(--ib-bg-surface)",
+                borderColor: "var(--ib-border)",
+                flexShrink: 0,
+              }}
+            >
+              <Link
+                to={activePost.user_id ? `/profile/${activePost.user_id}` : "#"}
+                onClick={() => setActivePost(null)}
+                className="d-flex align-items-center text-decoration-none text-reset"
+                style={{ gap: "10px", minWidth: 0, flex: 1, overflow: "hidden" }}
+                title={`View ${activePost.user_name || "Author"}'s profile`}
+              >
+                <div
+                  style={{
+                    width: "42px",
+                    height: "42px",
+                    minWidth: "42px",
+                    borderRadius: "50%",
+                    background: (activePost.is_admin || activePost.user_name === "Admin")
+                      ? "linear-gradient(135deg, #4F46E5, #06B6D4)"
+                      : "linear-gradient(135deg, #E42313, #EA1B3D)",
+                    color: "#FFF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    fontSize: "17px",
+                    flexShrink: 0,
+                    boxShadow: "0 3px 10px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  {(activePost.is_admin || activePost.user_name === "Admin") ? (
+                    <FaShieldAlt size={18} />
+                  ) : activePost.user_name ? (
+                    activePost.user_name.charAt(0).toUpperCase()
+                  ) : (
+                    <FaUser size={16} />
+                  )}
+                </div>
+                <div style={{ minWidth: 0, overflow: "hidden" }}>
+                  <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                    <span className="font-weight-bold brand-font text-truncate" style={{ fontSize: "0.98rem", color: "var(--ib-text-main)", maxWidth: "180px" }}>
+                      {activePost.is_admin ? "InfoBeans Administration" : (activePost.user_name || "Community Member")}
+                    </span>
+                    {activePost.is_admin && (
+                      <FaCheckCircle size={12} style={{ color: "#4F46E5" }} title="Verified Admin" />
+                    )}
+                    <span
+                      className={`badge rounded-pill px-2 py-0.5 font-weight-bold ${
+                        activePost.is_admin ? "bg-primary text-white" : "badge-alumni"
+                      }`}
+                      style={{ fontSize: "0.68rem" }}
+                    >
+                      {activePost.is_admin ? "Admin" : "Alumni"}
+                    </span>
+                  </div>
+                  <div className="text-muted d-flex align-items-center gap-1.5 mt-0.5" style={{ fontSize: "0.76rem" }}>
+                    <span className="text-truncate" style={{ maxWidth: "120px" }}>
+                      {activePost.is_admin ? "Official Desk" : (activePost.user_batch || "Cohort")}
+                    </span>
+                    <span>•</span>
+                    <span className="d-inline-flex align-items-center gap-1 text-nowrap">
+                      <FaClock size={9} />
+                      {formatPostDate(activePost.updated_at || activePost.created_at)}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+
+              {/* Header Right Actions */}
+              <div className="d-flex align-items-center gap-1.5 flex-shrink-0">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center text-muted"
+                  onClick={() => setActivePost(null)}
+                  style={{ width: "32px", height: "32px", padding: 0 }}
+                  title="Close popup"
+                >
+                  <FaTimes size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-3 p-sm-4" style={{ overflowY: "auto", flex: 1 }}>
+              {/* Category Pill */}
+              {(() => {
+                const catInfo = getCategoryBadge(activePost.category);
+                return (
+                  <div className="mb-2.5">
+                    <span
+                      className="d-inline-flex align-items-center gap-1.5 rounded-pill font-weight-bold"
+                      style={{
+                        fontSize: "0.74rem",
+                        padding: "3px 11px",
+                        background: catInfo.bg,
+                        color: catInfo.color,
+                        border: catInfo.border,
+                      }}
+                    >
+                      {catInfo.icon}
+                      <span>{catInfo.label}</span>
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Title */}
+              <h2
+                className="brand-font font-weight-bold mb-3 text-break-all"
+                style={{
+                  fontSize: "1.28rem",
+                  lineHeight: 1.35,
+                  color: "var(--ib-text-main)",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {activePost.title}
+              </h2>
+
+              {/* Full Text Content */}
+              {activePost.content && (
+                <div
+                  className="mb-3.5 text-break-all"
+                  style={{
+                    fontSize: "0.96rem",
+                    lineHeight: 1.75,
+                    color: "var(--ib-text-main)",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {activePost.content}
+                </div>
+              )}
+
+              {/* High-Res Image Display */}
+              {activePost.image && (
+                <div
+                  className="overflow-hidden my-3"
+                  style={{
+                    background: "var(--ib-bg-surface-secondary)",
+                    borderRadius: "14px",
+                    border: "1px solid var(--ib-border)",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+                    textAlign: "center",
+                  }}
+                >
+                  <img
+                    src={
+                      activePost.image.startsWith("http")
+                        ? activePost.image
+                        : `${import.meta.env.VITE_API_URL}${activePost.image}`
+                    }
+                    alt={activePost.title}
+                    style={{
+                      width: "100%",
+                      maxHeight: "440px",
+                      objectFit: "contain",
+                      display: "block",
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className="px-3 px-sm-4 py-2.5 border-top d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center justify-content-between gap-2"
+              style={{ background: "var(--ib-bg-surface-secondary)", borderColor: "var(--ib-border)", flexShrink: 0 }}
+            >
+              <Link
+                to={activePost.user_id ? `/profile/${activePost.user_id}` : "#"}
+                onClick={() => setActivePost(null)}
+                className="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5 font-weight-bold d-inline-flex align-items-center justify-content-center gap-1.5 w-100 w-sm-auto"
+                style={{ fontSize: "0.8rem" }}
+              >
+                <FaGraduationCap size={12} />
+                <span>View Author Profile & Posts</span>
+                <FaExternalLinkAlt size={9} />
+              </Link>
+
+              <div className="d-flex align-items-center justify-content-end gap-2">
+                {(isAdmin || (currentUser?.id && activePost.user_id === currentUser.id)) && (
+                  <button
+                    onClick={(e) => handleDeletePost(activePost.id, e)}
+                    disabled={deletingId === activePost.id}
+                    className="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5 font-weight-bold d-inline-flex align-items-center gap-1"
+                    style={{ fontSize: "0.78rem" }}
+                  >
+                    <FaTrashAlt size={10} />
+                    <span>{deletingId === activePost.id ? "Deleting..." : "Delete"}</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setActivePost(null)}
+                  className="btn btn-sm btn-secondary rounded-pill px-3.5 py-1.5 font-weight-bold"
+                  style={{ fontSize: "0.8rem" }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

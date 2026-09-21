@@ -2,7 +2,7 @@ import axios from "axios";
 import store from "../redux-config/store";
 
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: import.meta.env.VITE_API_URL,
 });
 
 axiosInstance.interceptors.request.use(

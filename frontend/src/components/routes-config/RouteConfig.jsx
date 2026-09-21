@@ -20,7 +20,23 @@ function RouteConfig() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/signin" element={<Signin />} />
 
-      {/* Protected Routes */}
+      {/* Profile Routes */}
+      <Route
+        path="/profile/:userId"
+        element={
+          <Auth>
+            <Profile />
+          </Auth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <Auth>
+            <Profile />
+          </Auth>
+        }
+      />
       <Route
         path="/student-profile"
         element={
@@ -29,6 +45,8 @@ function RouteConfig() {
           </Auth>
         }
       />
+
+      {/* Post Routes */}
       <Route
         path="/post"
         element={

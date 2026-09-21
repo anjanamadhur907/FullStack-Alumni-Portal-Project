@@ -323,13 +323,31 @@ a:hover {
   color: #FFFFFF !important;
 }
 
-[data-theme="dark"] .btn-outline-danger {
-  border-color: rgba(255, 255, 255, 0.45) !important;
+.btn-outline-danger {
+  color: var(--ib-primary, #E42313) !important;
+  border-color: var(--ib-primary, #E42313) !important;
+  background-color: transparent !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:active,
+.btn-outline-danger:focus {
   color: #FFFFFF !important;
+  background-color: var(--ib-primary, #E42313) !important;
+  border-color: var(--ib-primary, #E42313) !important;
+  box-shadow: 0 4px 12px rgba(228, 35, 19, 0.25);
+}
+
+[data-theme="dark"] .btn-outline-danger {
+  border-color: rgba(228, 35, 19, 0.6) !important;
+  color: #FFAAA3 !important;
+  background-color: transparent !important;
 }
 
 [data-theme="dark"] .btn-outline-danger:hover {
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: var(--ib-primary, #E42313) !important;
+  border-color: var(--ib-primary, #E42313) !important;
   color: #FFFFFF !important;
 }
 
@@ -351,12 +369,199 @@ a:hover {
 /* Animations */
 @keyframes modal-pop {
   from {
-    transform: scale(0.96) translateY(6px);
+    transform: scale(0.95) translateY(8px);
     opacity: 0;
   }
   to {
     transform: scale(1) translateY(0);
     opacity: 1;
   }
+}
+
+/* ==========================================================================
+   Mobile-First Responsiveness & Spacing Safeguards
+   ========================================================================== */
+.container, .container-fluid, .container-sm, .container-md, .container-lg, .container-xl {
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+  width: 100% !important;
+}
+
+/* Text Word-Break & Overflow Prevention */
+h1, h2, h3, h4, h5, h6, p, span, a, div, .brand-font {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.text-break-all {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Scrollbar hide utility for horizontal pills */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Modal Responsive Rules */
+.modal-dialog {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+  
+  .ib-card, .card {
+    border-radius: 16px !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .container {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .modal.fade.show {
+    padding: 8px !important;
+  }
+
+  .modal-content {
+    border-radius: 18px !important;
+    max-height: 94vh !important;
+  }
+
+  .ib-card, .card {
+    border-radius: 14px !important;
+  }
+
+  /* Prevent tight text clipping on tiny screens */
+  .brand-font {
+    letter-spacing: -0.01em !important;
+  }
+
+  /* Table responsive wrapper */
+  .table-responsive {
+    border-radius: 12px;
+    border: 1px solid var(--ib-border);
+  }
+}
+
+/* ==========================================================================
+   LinkedIn-Style Universal Search Bar & Dropdown
+   ========================================================================== */
+.ib-search-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  transition: max-width 0.25s ease;
+}
+
+@media (min-width: 1200px) {
+  .ib-search-wrapper {
+    max-width: 360px;
+  }
+}
+
+.ib-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--ib-bg-surface-secondary);
+  border: 1.5px solid var(--ib-border);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  transition: all 0.2s ease;
+}
+
+.ib-search-box:focus-within {
+  background-color: var(--ib-bg-surface);
+  border-color: #E42313;
+  box-shadow: 0 0 0 3px rgba(228, 35, 19, 0.12);
+}
+
+.ib-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ib-text-main);
+  font-size: 0.85rem;
+  font-weight: 500;
+  width: 100%;
+}
+
+.ib-search-input::placeholder {
+  color: var(--ib-text-light);
+  font-weight: 400;
+}
+
+.ib-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  min-width: 340px;
+  max-width: 480px;
+  max-height: 440px;
+  overflow-y: auto;
+  background-color: var(--ib-bg-surface);
+  border: 1px solid var(--ib-border);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 1060;
+  animation: ibSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ibSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ib-search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  color: var(--ib-text-main);
+}
+
+.ib-search-item:hover, .ib-search-item.active {
+  background-color: var(--ib-bg-surface-secondary);
+  transform: translateX(2px);
+}
+
+.ib-search-tab {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+  color: var(--ib-text-muted);
+}
+
+.ib-search-tab.active {
+  background: var(--ib-primary);
+  color: #ffffff;
+  border-color: var(--ib-primary);
 }
 

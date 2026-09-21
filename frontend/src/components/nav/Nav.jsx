@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut, setCategoryFilter, getProfile } from "../redux-config/UserSlice";
@@ -20,6 +20,10 @@ import {
   FaUserTie,
   FaGraduationCap,
   FaShieldAlt,
+  FaSearch,
+  FaNewspaper,
+  FaArrowRight,
+  FaSpinner,
 } from "react-icons/fa";
 
 const CATEGORIES = [
@@ -52,6 +56,16 @@ function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Search Spotlight Modal States
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTab, setSearchTab] = useState("all"); // "all" | "people" | "posts"
+  const [searchResults, setSearchResults] = useState({ profiles: [], posts: [] });
+
+  const searchInputRef = useRef(null);
+  const debounceTimeoutRef = useRef(null);
+
   useEffect(() => {
     if (isLoggedIn && !isAdmin && currentUser?.token) {
       axiosInstance
@@ -68,48 +82,179 @@ function Navbar() {
     localStorage.setItem("ib_theme", theme);
   }, [theme]);
 
-  // Close drawer on route change
+  // Close drawer and search modal on route change
   useEffect(() => {
     setDrawerOpen(false);
-  }, [location.pathname]);
+    setSearchModalOpen(false);
+  }, [location.pathname, location.search]);
+
+  // Global Ctrl+K / Cmd+K shortcut to open search modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchModalOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setSearchModalOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Auto-focus input when search modal opens
+  useEffect(() => {
+    if (searchModalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      document.body.style.overflow = "hidden";
+    } else {
+      if (!drawerOpen) {
+        document.body.style.overflow = "unset";
+      }
+    }
+    return () => {
+      if (!drawerOpen) {
+        document.body.style.overflow = "unset";
+      }
+    };
+  }, [searchModalOpen, drawerOpen]);
 
   // Disable body scroll when mobile drawer is open
   useEffect(() => {
     if (drawerOpen) {
       document.body.style.overflow = "hidden";
-    } else {
+    } else if (!searchModalOpen) {
       document.body.style.overflow = "unset";
     }
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [drawerOpen]);
+  }, [drawerOpen, searchModalOpen]);
 
+  // Throttled Scroll Listener using requestAnimationFrame for optimal 60fps performance
   useEffect(() => {
     let lastScrollY = window.scrollY;
+    let ticking = false;
 
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
 
-      if (currentScrollY > 30) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
+          if (currentScrollY > 30) {
+            setIsScrolled(true);
+          } else {
+            setIsScrolled(false);
+          }
+
+          // Hide when scrolling down, show when scrolling up
+          if (currentScrollY > lastScrollY && currentScrollY > 80 && !drawerOpen && !searchModalOpen) {
+            setVisible(false);
+          } else {
+            setVisible(true);
+          }
+
+          lastScrollY = currentScrollY <= 0 ? 0 : currentScrollY;
+          ticking = false;
+        });
+        ticking = true;
       }
-
-      // Hide when scrolling down, show when scrolling up
-      if (currentScrollY > lastScrollY && currentScrollY > 80 && !drawerOpen) {
-        setVisible(false);
-      } else {
-        setVisible(true);
-      }
-
-      lastScrollY = currentScrollY <= 0 ? 0 : currentScrollY;
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [drawerOpen]);
+  }, [drawerOpen, searchModalOpen]);
+
+  // Real-time Debounced Search Function
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults({ profiles: [], posts: [] });
+      setIsSearching(false);
+      return;
+    }
+
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    setIsSearching(true);
+
+    debounceTimeoutRef.current = setTimeout(async () => {
+      try {
+        const token = currentUser?.token || localStorage.getItem("token");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+        // 1. Fetch Profiles from Search API
+        const profilePromise = axiosInstance
+          .get(`/profile/search?q=${encodeURIComponent(q)}`, { headers })
+          .then((res) => res.data || [])
+          .catch(() => []);
+
+        // 2. Fetch Posts & Filter locally for instant matching
+        const postsPromise = axiosInstance
+          .get("/post/", { headers })
+          .then((res) => res.data || [])
+          .catch(() => []);
+
+        const [profilesData, rawPosts] = await Promise.all([profilePromise, postsPromise]);
+
+        const lowerQ = q.toLowerCase();
+
+        // Filter Posts
+        const matchedPosts = rawPosts.filter((p) => {
+          const matchTitle = p.title && p.title.toLowerCase().includes(lowerQ);
+          const matchContent = p.content && p.content.toLowerCase().includes(lowerQ);
+          const matchAuthor = p.user_name && p.user_name.toLowerCase().includes(lowerQ);
+          const matchCat = p.category && p.category.toLowerCase().includes(lowerQ);
+          const matchBatch = p.user_batch && p.user_batch.toLowerCase().includes(lowerQ);
+          return matchTitle || matchContent || matchAuthor || matchCat || matchBatch;
+        });
+
+        // Merge profiles with unique matched authors from posts for 100% search coverage
+        const profileMap = new Map();
+        (profilesData || []).forEach((p) => {
+          if (p && p.user_id) profileMap.set(String(p.user_id), p);
+        });
+
+        // Add matching authors from posts if not already present
+        rawPosts.forEach((p) => {
+          if (p.user_name && p.user_name.toLowerCase().includes(lowerQ)) {
+            const uid = String(p.user_id || `post-author-${p.user_name}`);
+            if (!profileMap.has(uid)) {
+              profileMap.set(uid, {
+                user_id: p.user_id,
+                name: p.user_name,
+                role: p.is_admin ? "Admin" : "Alumni",
+                batch_name: p.user_batch || "Community Author",
+                about: `Author of post "${p.title}"`,
+              });
+            }
+          }
+        });
+
+        const combinedProfiles = Array.from(profileMap.values());
+
+        setSearchResults({
+          profiles: combinedProfiles.slice(0, 6),
+          posts: matchedPosts.slice(0, 6),
+        });
+      } catch (err) {
+        console.error("Search error:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 180);
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -143,6 +288,33 @@ function Navbar() {
       navigate("/");
     }
   };
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+
+    setSearchModalOpen(false);
+    navigate(`/?search=${encodeURIComponent(q)}`);
+  };
+
+  const handleSelectProfile = (userId) => {
+    setSearchModalOpen(false);
+    setSearchQuery("");
+    if (currentUser?.id === userId) {
+      navigate("/student-profile");
+    } else {
+      navigate(`/profile/${userId}`);
+    }
+  };
+
+  const handleSelectPost = (postId) => {
+    setSearchModalOpen(false);
+    setSearchQuery("");
+    navigate(`/?postId=${postId}`);
+  };
+
+  const totalResults = searchResults.profiles.length + searchResults.posts.length;
 
   return (
     <>
@@ -192,6 +364,45 @@ function Navbar() {
                 />
               </div>
             </NavLink>
+
+            {/* Desktop Search Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setSearchModalOpen(true)}
+              className="d-none d-lg-flex align-items-center gap-2 px-3 py-1.5 rounded-pill font-weight-bold mr-3"
+              style={{
+                fontSize: "0.82rem",
+                background: "var(--ib-bg-surface-secondary)",
+                color: "var(--ib-text-main)",
+                border: "1.5px solid var(--ib-border)",
+                cursor: "pointer",
+                transition: "all 0.18s ease",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#E42313";
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(228, 35, 19, 0.12)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--ib-border)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+              title="Search people and posts (Ctrl+K)"
+            >
+              <FaSearch size={12} color="#E42313" />
+              <span style={{ opacity: 0.85 }}>Search...</span>
+              <span
+                className="badge px-1.5 py-0.5 ml-1 font-weight-bold"
+                style={{
+                  fontSize: "0.62rem",
+                  background: "var(--ib-border)",
+                  color: "var(--ib-text-muted)",
+                  borderRadius: "4px",
+                }}
+              >
+                Ctrl+K
+              </span>
+            </button>
 
             {/* Desktop Center Category Pills */}
             <div
@@ -424,8 +635,28 @@ function Navbar() {
               )}
             </div>
 
-            {/* Mobile Header Right Controls (Sign In + Theme + Side Drawer Trigger) */}
+            {/* Mobile Header Right Controls (Search Button + Theme + Side Drawer Trigger) */}
             <div className="d-flex d-lg-none align-items-center gap-2">
+              {/* Mobile Search Button */}
+              <button
+                type="button"
+                onClick={() => setSearchModalOpen(true)}
+                className="btn btn-sm d-flex align-items-center justify-content-center rounded-circle"
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  background: "var(--ib-bg-surface-secondary)",
+                  border: "1px solid var(--ib-border)",
+                  color: "#E42313",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+                aria-label="Search"
+                title="Search (Ctrl+K)"
+              >
+                <FaSearch size={13} />
+              </button>
+
               {!isLoggedIn && (
                 <NavLink
                   to="/signin"
@@ -485,6 +716,301 @@ function Navbar() {
           </div>
         </nav>
       </header>
+
+      {/* ========================================================= */}
+      {/* Spotlight Search Modal (Opens on Button / Ctrl+K click)    */}
+      {/* ========================================================= */}
+      {searchModalOpen && (
+        <div
+          onClick={() => setSearchModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.72)",
+            backdropFilter: "blur(8px)",
+            zIndex: 2050,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            padding: "60px 16px 20px 16px",
+            animation: "fadeIn 0.2s ease",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="ib-card overflow-hidden d-flex flex-column"
+            style={{
+              width: "100%",
+              maxWidth: "620px",
+              maxHeight: "80vh",
+              backgroundColor: "var(--ib-bg-surface)",
+              borderRadius: "20px",
+              border: "1px solid var(--ib-border)",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.45)",
+            }}
+          >
+            {/* Search Input Bar in Modal */}
+            <form onSubmit={handleSearchSubmit} className="d-flex align-items-center p-3 px-3.5 border-bottom gap-2.5">
+              <FaSearch size={16} style={{ color: "#E42313", flexShrink: 0 }} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search alumni, students, posts by name, topic..."
+                className="border-0 bg-transparent flex-grow-1"
+                style={{
+                  outline: "none",
+                  fontSize: "1rem",
+                  color: "var(--ib-text-main)",
+                  fontWeight: 500,
+                }}
+              />
+              {isSearching && <FaSpinner size={13} className="text-muted fa-spin mr-1" />}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSearchResults({ profiles: [], posts: [] });
+                  }}
+                  className="btn p-0 border-0 text-muted d-flex align-items-center justify-content-center"
+                  style={{ width: "22px", height: "22px" }}
+                >
+                  <FaTimes size={13} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSearchModalOpen(false)}
+                className="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-0.5"
+                style={{ fontSize: "0.72rem" }}
+              >
+                ESC
+              </button>
+            </form>
+
+            {/* Filter Tabs if results exist */}
+            {searchQuery.trim() && (
+              <div className="px-3.5 py-2 d-flex align-items-center gap-1.5 border-bottom bg-surface-secondary">
+                <button
+                  type="button"
+                  onClick={() => setSearchTab("all")}
+                  className={`ib-search-tab ${searchTab === "all" ? "active" : ""}`}
+                >
+                  All ({totalResults})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSearchTab("people")}
+                  className={`ib-search-tab ${searchTab === "people" ? "active" : ""}`}
+                >
+                  People ({searchResults.profiles.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSearchTab("posts")}
+                  className={`ib-search-tab ${searchTab === "posts" ? "active" : ""}`}
+                >
+                  Posts ({searchResults.posts.length})
+                </button>
+              </div>
+            )}
+
+            {/* Results Body */}
+            <div className="p-3 overflow-y-auto flex-grow-1" style={{ maxHeight: "380px" }}>
+              {!searchQuery.trim() ? (
+                <div className="py-4 text-center text-muted">
+                  <FaSearch size={24} style={{ color: "var(--ib-border)" }} className="mb-2" />
+                  <div className="font-weight-bold" style={{ fontSize: "0.88rem", color: "var(--ib-text-main)" }}>
+                    Search InfoBeans Community
+                  </div>
+                  <small className="text-muted d-block mt-0.5" style={{ fontSize: "0.78rem" }}>
+                    Type a name (e.g. <em>"Madhur"</em>, <em>"Yash"</em>) or post keyword
+                  </small>
+                </div>
+              ) : totalResults === 0 && !isSearching ? (
+                <div className="py-4 text-center">
+                  <div className="text-muted mb-1" style={{ fontSize: "1.4rem" }}>
+                    🔍
+                  </div>
+                  <div className="font-weight-bold" style={{ fontSize: "0.88rem", color: "var(--ib-text-main)" }}>
+                    No matches found for "{searchQuery}"
+                  </div>
+                  <small className="text-muted" style={{ fontSize: "0.76rem" }}>
+                    Try searching with another person's name, role, or post topic
+                  </small>
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  {/* Section 1: People & Alumni */}
+                  {(searchTab === "all" || searchTab === "people") && searchResults.profiles.length > 0 && (
+                    <div>
+                      <div
+                        className="px-2 py-1 text-muted font-weight-bold text-uppercase"
+                        style={{ fontSize: "0.68rem", letterSpacing: "0.05em" }}
+                      >
+                        People & Alumni
+                      </div>
+
+                      {searchResults.profiles.map((profile) => {
+                        const isUserAlumni = profile.role === "Alumni";
+                        const isAdminUser = profile.role === "Admin";
+                        return (
+                          <div
+                            key={`profile-${profile.user_id}`}
+                            onClick={() => handleSelectProfile(profile.user_id)}
+                            className="ib-search-item"
+                          >
+                            <div
+                              style={{
+                                width: "38px",
+                                height: "38px",
+                                borderRadius: "50%",
+                                background: isAdminUser
+                                  ? "linear-gradient(135deg, #4F46E5, #06B6D4)"
+                                  : isUserAlumni
+                                  ? "linear-gradient(135deg, #005DA6, #0284C7)"
+                                  : "linear-gradient(135deg, #E42313, #EA1B3D)",
+                                color: "#FFF",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "14px",
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isAdminUser ? (
+                                <FaShieldAlt size={13} />
+                              ) : profile.name ? (
+                                profile.name.charAt(0).toUpperCase()
+                              ) : (
+                                <FaUser size={12} />
+                              )}
+                            </div>
+
+                            <div className="flex-grow-1 overflow-hidden">
+                              <div className="d-flex align-items-center gap-1.5">
+                                <span
+                                  className="font-weight-bold text-truncate"
+                                  style={{ fontSize: "0.88rem", color: "var(--ib-text-main)" }}
+                                >
+                                  {profile.name}
+                                </span>
+                                <span
+                                  className={
+                                    isAdminUser
+                                      ? "badge badge-primary px-1.5 py-0.5"
+                                      : isUserAlumni
+                                      ? "badge-alumni"
+                                      : "badge-student"
+                                  }
+                                  style={{ fontSize: "0.62rem", padding: "1px 6px" }}
+                                >
+                                  {profile.role || "Member"}
+                                </span>
+                              </div>
+                              <small className="text-muted d-block text-truncate" style={{ fontSize: "0.74rem" }}>
+                                {profile.batch_name ? `${profile.batch_name}` : profile.about || "InfoBeans Community"}
+                              </small>
+                            </div>
+
+                            <FaArrowRight size={11} className="text-muted" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Section 2: Posts */}
+                  {(searchTab === "all" || searchTab === "posts") && searchResults.posts.length > 0 && (
+                    <div className={searchResults.profiles.length > 0 && searchTab === "all" ? "mt-2 pt-2 border-top" : ""}>
+                      <div
+                        className="px-2 py-1 text-muted font-weight-bold text-uppercase"
+                        style={{ fontSize: "0.68rem", letterSpacing: "0.05em" }}
+                      >
+                        Posts & Discussions
+                      </div>
+
+                      {searchResults.posts.map((post) => (
+                        <div
+                          key={`post-${post.id}`}
+                          onClick={() => handleSelectPost(post.id)}
+                          className="ib-search-item"
+                        >
+                          <div
+                            style={{
+                              width: "38px",
+                              height: "38px",
+                              borderRadius: "10px",
+                              background: "rgba(228, 35, 19, 0.1)",
+                              color: "#E42313",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <FaNewspaper size={15} />
+                          </div>
+
+                          <div className="flex-grow-1 overflow-hidden">
+                            <div className="d-flex align-items-center gap-1.5">
+                              <span
+                                className="font-weight-bold text-truncate"
+                                style={{ fontSize: "0.86rem", color: "var(--ib-text-main)" }}
+                              >
+                                {post.title}
+                              </span>
+                              <span
+                                className="badge px-1.5 py-0.5 rounded-pill"
+                                style={{
+                                  fontSize: "0.62rem",
+                                  background: "var(--ib-bg-surface-secondary)",
+                                  color: "var(--ib-text-muted)",
+                                  border: "1px solid var(--ib-border)",
+                                }}
+                              >
+                                {post.category || "General"}
+                              </span>
+                            </div>
+                            <small className="text-muted d-block text-truncate" style={{ fontSize: "0.74rem" }}>
+                              by {post.user_name || "Community Member"}
+                            </small>
+                          </div>
+
+                          <FaArrowRight size={11} className="text-muted" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Action */}
+            {searchQuery.trim() && (
+              <div className="p-3 border-top bg-surface-secondary">
+                <button
+                  type="button"
+                  onClick={handleSearchSubmit}
+                  className="btn w-100 py-2 rounded-pill font-weight-bold d-flex align-items-center justify-content-center gap-1.5"
+                  style={{
+                    fontSize: "0.82rem",
+                    background: "rgba(228, 35, 19, 0.08)",
+                    color: "#E42313",
+                    border: "1px solid rgba(228, 35, 19, 0.25)",
+                  }}
+                >
+                  <FaSearch size={11} />
+                  <span>See all results for "{searchQuery}" in Feed</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* Off-Canvas Slide-out Side Drawer for Small Screens */}
@@ -558,6 +1084,26 @@ function Navbar() {
 
         {/* Drawer Body Content */}
         <div className="p-3.5 d-flex flex-column gap-3.5 flex-grow-1">
+          {/* Quick Search Button in Drawer */}
+          <button
+            type="button"
+            onClick={() => {
+              setDrawerOpen(false);
+              setSearchModalOpen(true);
+            }}
+            className="btn w-100 text-left d-flex align-items-center gap-2.5 px-3 py-2.5 rounded-lg font-weight-bold"
+            style={{
+              fontSize: "0.88rem",
+              background: "var(--ib-bg-surface-secondary)",
+              color: "var(--ib-text-main)",
+              border: "1px solid var(--ib-border)",
+              borderRadius: "12px",
+            }}
+          >
+            <FaSearch size={13} style={{ color: "#E42313" }} />
+            <span>Search People & Posts</span>
+          </button>
+
           {/* User Identity Card in Drawer */}
           {isLoggedIn && (
             isAdmin ? (

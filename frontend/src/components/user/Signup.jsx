@@ -114,7 +114,7 @@ function Signup() {
                   value={cardId}
                   className="form-control border-left-0"
                   type="text"
-                  placeholder="e.g. IB-2023-001"
+                  placeholder="e.g. INFO-XXXXXX"
                   required
                   style={{ fontSize: "0.9rem" }}
                 />

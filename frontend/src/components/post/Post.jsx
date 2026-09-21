@@ -4,6 +4,7 @@ import axiosInstance from "../axios-config/api";
 import { useNavigate, NavLink } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useSelector } from "react-redux";
+import ImageCropperModal from "./ImageCropperModal";
 import {
   FaImage,
   FaLightbulb,
@@ -13,6 +14,9 @@ import {
   FaPaperPlane,
   FaArrowLeft,
   FaLock,
+  FaCropAlt,
+  FaSyncAlt,
+  FaCheckCircle,
 } from "react-icons/fa";
 
 const CATEGORIES = [
@@ -42,24 +46,40 @@ function Post() {
   const [imagePreview, setImagePreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Image Cropping & Adjusting States
+  const [rawImageSrc, setRawImageSrc] = useState(null);
+  const [rawFileName, setRawFileName] = useState("post_image.jpg");
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setSelectedFile(file);
+      setRawFileName(file.name || "post_image.jpg");
       const reader = new FileReader();
       reader.onloadend = () => {
+        setRawImageSrc(reader.result);
+        // Initially set preview and open cropper so user can adjust
+        setSelectedFile(file);
         setImagePreview(reader.result);
+        setIsCropperOpen(true);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const handleCropComplete = ({ file, url }) => {
+    setSelectedFile(file);
+    setImagePreview(url);
+    toast.success("Image cropped and adjusted successfully!");
+  };
+
   const handleRemoveImage = () => {
     setSelectedFile(null);
     setImagePreview("");
+    setRawImageSrc(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -233,11 +253,19 @@ function Post() {
               />
             </div>
 
-            {/* Image Upload */}
+            {/* Image Upload & Adjust */}
             <div className="mb-4">
-              <label className="text-muted font-weight-bold mb-1" style={{ fontSize: "0.75rem", textTransform: "uppercase" }}>
-                Image (Optional)
-              </label>
+              <div className="d-flex align-items-center justify-content-between mb-1.5">
+                <label className="text-muted font-weight-bold mb-0" style={{ fontSize: "0.75rem", textTransform: "uppercase" }}>
+                  Post Image & Media
+                </label>
+                {imagePreview && (
+                  <span className="badge badge-success px-2 py-0.5 rounded-pill d-inline-flex align-items-center gap-1" style={{ fontSize: "0.68rem" }}>
+                    <FaCheckCircle size={9} /> Ready
+                  </span>
+                )}
+              </div>
+
               <input
                 type="file"
                 ref={fileInputRef}
@@ -249,37 +277,104 @@ function Post() {
               {!imagePreview ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-3.5 text-center rounded-lg d-flex flex-column align-items-center justify-content-center"
+                  className="p-4 text-center rounded-lg d-flex flex-column align-items-center justify-content-center"
                   style={{
                     border: "2px dashed var(--ib-border)",
                     background: "var(--ib-bg-surface-secondary)",
                     cursor: "pointer",
-                    borderRadius: "12px",
+                    borderRadius: "14px",
+                    transition: "all 0.2s ease",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#E42313")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--ib-border)")}
                 >
-                  <FaImage style={{ color: "#E42313" }} className="mb-1" size={26} />
-                  <span className="font-weight-bold" style={{ fontSize: "0.88rem" }}>
+                  <div
+                    style={{
+                      width: "44px",
+                      height: "44px",
+                      borderRadius: "50%",
+                      background: "rgba(228, 35, 19, 0.12)",
+                      color: "#E42313",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <FaImage size={20} />
+                  </div>
+                  <span className="font-weight-bold" style={{ fontSize: "0.9rem", color: "var(--ib-text-main)" }}>
                     Click to select an image
                   </span>
-                  <small className="text-muted" style={{ fontSize: "0.75rem" }}>
-                    JPG, PNG, WebP
+                  <small className="text-muted mt-0.5" style={{ fontSize: "0.78rem" }}>
+                    Crop, rotate, zoom, and select your custom aspect ratio (16:9, 1:1, 4:3, 4:5)
                   </small>
                 </div>
               ) : (
-                <div className="position-relative rounded-lg overflow-hidden border" style={{ maxHeight: "280px" }}>
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    style={{ width: "100%", maxHeight: "280px", objectFit: "cover" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="btn btn-danger position-absolute"
-                    style={{ top: "10px", right: "10px", borderRadius: "50%", width: "32px", height: "32px", padding: 0 }}
+                <div
+                  className="p-3 rounded-xl border d-flex flex-column gap-2.5"
+                  style={{
+                    background: "var(--ib-bg-surface-secondary)",
+                    borderColor: "var(--ib-border)",
+                    borderRadius: "14px",
+                  }}
+                >
+                  <div
+                    className="position-relative rounded-lg overflow-hidden border shadow-sm"
+                    style={{
+                      maxHeight: "340px",
+                      background: "#0F172A",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
                   >
-                    <FaTrash size={12} />
-                  </button>
+                    <img
+                      src={imagePreview}
+                      alt="Cropped Preview"
+                      style={{
+                        width: "100%",
+                        maxHeight: "340px",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                  </div>
+
+                  {/* Image Adjust Toolbar */}
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-1">
+                    <div className="d-flex align-items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsCropperOpen(true)}
+                        className="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5 font-weight-bold d-inline-flex align-items-center gap-1.5"
+                        style={{ fontSize: "0.82rem" }}
+                      >
+                        <FaCropAlt size={11} />
+                        <span>Adjust / Crop Image</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 font-weight-bold d-inline-flex align-items-center gap-1.5"
+                        style={{ fontSize: "0.82rem" }}
+                      >
+                        <FaSyncAlt size={10} />
+                        <span>Change Photo</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5 font-weight-bold d-inline-flex align-items-center gap-1.5"
+                      style={{ fontSize: "0.82rem" }}
+                    >
+                      <FaTrash size={10} />
+                      <span>Remove</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -288,7 +383,7 @@ function Post() {
             <div className="d-flex justify-content-between align-items-center pt-3 border-top">
               <button
                 type="button"
-                className="btn btn-ib-secondary rounded-pill px-4 py-2"
+                className="btn btn-ib-secondary rounded-pill px-4 py-2 font-weight-bold"
                 onClick={() => navigate("/")}
                 style={{ fontSize: "0.85rem" }}
               >
@@ -298,16 +393,27 @@ function Post() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="btn-ib-primary rounded-pill px-4 py-2 font-weight-bold"
+                className="btn-ib-primary rounded-pill px-4 py-2 font-weight-bold d-inline-flex align-items-center gap-1.5 shadow-sm"
                 style={{ fontSize: "0.9rem" }}
               >
-                <FaPaperPlane size={12} className="mr-1.5" />
+                <FaPaperPlane size={12} />
                 <span>{submitting ? "Publishing..." : "Create Post"}</span>
               </button>
             </div>
           </form>
         </div>
       </div>
+
+      {/* Image Cropper Modal */}
+      {isCropperOpen && rawImageSrc && (
+        <ImageCropperModal
+          isOpen={isCropperOpen}
+          imageSrc={rawImageSrc}
+          fileName={rawFileName}
+          onCropComplete={handleCropComplete}
+          onClose={() => setIsCropperOpen(false)}
+        />
+      )}
     </div>
   );
 }

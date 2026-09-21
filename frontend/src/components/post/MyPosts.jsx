@@ -100,7 +100,7 @@ function MyPosts() {
               <option value="Announcement">Announcement</option>
             </select>
 
-            <button className="btn btn-sm btn-outline-danger px-3 rounded-pill" onClick={searchPost} style={{ fontSize: "0.82rem", borderColor: "#E42313", color: "#E42313" }}>
+            <button className="btn btn-sm btn-outline-danger px-3 rounded-pill" onClick={searchPost} style={{ fontSize: "0.82rem" }}>
               Filter
             </button>
           </div>
@@ -146,7 +146,7 @@ function MyPosts() {
               const imageUrl = post?.image
                 ? post.image.startsWith("http")
                   ? post.image
-                  : `http://localhost:8000${post.image}`
+                  : `${import.meta.env.VITE_API_URL}://${post.image}`
                 : "";
 
               return (

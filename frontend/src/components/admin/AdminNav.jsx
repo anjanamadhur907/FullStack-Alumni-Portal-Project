@@ -1,13 +1,22 @@
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { signOut } from "../redux-config/UserSlice";
 import {
   FaSignOutAlt,
   FaArrowLeft,
+  FaBars,
+  FaTimes,
+  FaShieldAlt,
+  FaUsers,
+  FaUserPlus,
+  FaLayerGroup,
+  FaPlus,
 } from "react-icons/fa";
 
 function AdminNav() {
   const { isLoggedIn } = useSelector((store) => store.user);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -22,12 +31,24 @@ function AdminNav() {
     navigate("/signin");
   };
 
+  const navLinks = [
+    { to: "/admin/dashboard", label: "Dashboard", icon: <FaShieldAlt size={12} /> },
+    { to: "/admin/create-student", label: "+ Add Student", icon: <FaUserPlus size={12} /> },
+    { to: "/admin/view-students", label: "Manage Students", icon: <FaUsers size={12} /> },
+    { to: "/admin/create-batch", label: "+ Create Batch", icon: <FaPlus size={11} /> },
+    { to: "/admin/view-batch", label: "Batches", icon: <FaLayerGroup size={12} /> },
+  ];
+
   return (
     <nav
-      className="navbar navbar-expand-lg navbar-dark shadow-sm py-2"
-      style={{ background: "#0F172A", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}
+      className="navbar navbar-dark shadow-sm py-2 position-sticky top-0"
+      style={{
+        background: "#0F172A",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+        zIndex: 1040,
+      }}
     >
-      <div className="container">
+      <div className="container d-flex align-items-center justify-content-between flex-wrap">
         {/* Brand Logo with infobeanslogo.png */}
         <Link className="navbar-brand d-flex align-items-center gap-2.5 text-white font-weight-bold" to="/admin/dashboard">
           <div
@@ -44,7 +65,7 @@ function AdminNav() {
               src="/infobeanslogo.png"
               alt="InfoBeans"
               style={{
-                height: "28px",
+                height: "26px",
                 width: "auto",
                 objectFit: "contain",
                 display: "block",
@@ -55,117 +76,125 @@ function AdminNav() {
             />
           </div>
           <div>
-            <span style={{ fontSize: "0.95rem", fontWeight: 700, letterSpacing: "-0.01em" }}>InfoBeans Admin</span>
-            <small className="d-block text-white-50" style={{ fontSize: "0.68rem" }}>
-              Management Console
+            <span style={{ fontSize: "0.92rem", fontWeight: 700, letterSpacing: "-0.01em" }}>InfoBeans Admin</span>
+            <small className="d-block text-white-50" style={{ fontSize: "0.65rem" }}>
+              Operations Console
             </small>
           </div>
         </Link>
 
-        <div className="collapse navbar-collapse show" id="adminNavbar">
-          <ul className="navbar-nav mx-auto gap-1">
-            <li className="nav-item">
-              <NavLink
-                className={({ isActive }) =>
-                  `nav-link px-3 py-1.5 rounded-pill font-weight-bold ${
-                    isActive ? "text-white bg-white-10" : "text-white-50"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  fontSize: "0.85rem",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                })}
-                to="/admin/dashboard"
-              >
-                Dashboard
-              </NavLink>
-            </li>
-            <li className="nav-item">
-              <NavLink
-                className={({ isActive }) =>
-                  `nav-link px-3 py-1.5 rounded-pill font-weight-bold ${
-                    isActive ? "text-white bg-white-10" : "text-white-50"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  fontSize: "0.85rem",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                })}
-                to="/admin/create-student"
-              >
-                + Add Student
-              </NavLink>
-            </li>
-            <li className="nav-item">
-              <NavLink
-                className={({ isActive }) =>
-                  `nav-link px-3 py-1.5 rounded-pill font-weight-bold ${
-                    isActive ? "text-white bg-white-10" : "text-white-50"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  fontSize: "0.85rem",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                })}
-                to="/admin/view-students"
-              >
-                Manage Students
-              </NavLink>
-            </li>
-            <li className="nav-item">
-              <NavLink
-                className={({ isActive }) =>
-                  `nav-link px-3 py-1.5 rounded-pill font-weight-bold ${
-                    isActive ? "text-white bg-white-10" : "text-white-50"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  fontSize: "0.85rem",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                })}
-                to="/admin/create-batch"
-              >
-                + Create Batch
-              </NavLink>
-            </li>
-            <li className="nav-item">
-              <NavLink
-                className={({ isActive }) =>
-                  `nav-link px-3 py-1.5 rounded-pill font-weight-bold ${
-                    isActive ? "text-white bg-white-10" : "text-white-50"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  fontSize: "0.85rem",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                })}
-                to="/admin/view-batch"
-              >
-                Batches
-              </NavLink>
-            </li>
-          </ul>
+        {/* Mobile Toggle Button */}
+        <div className="d-flex d-lg-none align-items-center gap-2">
+          <NavLink
+            to="/"
+            className="btn btn-sm btn-outline-light px-2.5 py-1 rounded-pill d-inline-flex align-items-center gap-1"
+            style={{ fontSize: "0.75rem", borderColor: "rgba(255,255,255,0.2)" }}
+          >
+            <FaArrowLeft size={9} /> Feed
+          </NavLink>
+          <button
+            type="button"
+            onClick={() => setMobileOpen((prev) => !prev)}
+            className="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center"
+            style={{ width: "34px", height: "34px", padding: 0 }}
+          >
+            {mobileOpen ? <FaTimes size={14} /> : <FaBars size={14} />}
+          </button>
+        </div>
 
-          <div className="d-flex align-items-center gap-2">
+        {/* Desktop Navigation Links */}
+        <div className="d-none d-lg-flex align-items-center mx-auto gap-1">
+          {navLinks.map((link) => (
             <NavLink
-              to="/"
-              className="btn btn-sm btn-outline-light px-3 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5"
-              style={{ fontSize: "0.8rem", borderColor: "rgba(255,255,255,0.2)" }}
+              key={link.to}
+              className={({ isActive }) =>
+                `nav-link px-3 py-1.5 rounded-pill font-weight-bold d-flex align-items-center gap-1.5 ${
+                  isActive ? "text-white" : "text-white-50"
+                }`
+              }
+              style={({ isActive }) => ({
+                fontSize: "0.82rem",
+                backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                transition: "all 0.15s ease",
+              })}
+              to={link.to}
             >
-              <FaArrowLeft size={10} /> Portal Feed
+              <span>{link.label}</span>
             </NavLink>
+          ))}
+        </div>
 
-            {isLoggedIn && (
-              <button
-                onClick={handleSignOut}
-                className="btn btn-sm btn-danger px-3 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5"
+        {/* Desktop Right Actions */}
+        <div className="d-none d-lg-flex align-items-center gap-2">
+          <NavLink
+            to="/"
+            className="btn btn-sm btn-outline-light px-3 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 font-weight-bold"
+            style={{ fontSize: "0.8rem", borderColor: "rgba(255,255,255,0.25)" }}
+          >
+            <FaArrowLeft size={10} /> Portal Feed
+          </NavLink>
+
+          {isLoggedIn && (
+            <button
+              onClick={handleSignOut}
+              className="btn btn-sm btn-danger px-3 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 font-weight-bold"
+              style={{ fontSize: "0.8rem" }}
+            >
+              <FaSignOutAlt size={11} /> Sign Out
+            </button>
+          )}
+        </div>
+
+        {/* Mobile Dropdown Menu (When toggled on small screens) */}
+        {mobileOpen && (
+          <div
+            className="d-lg-none w-100 mt-2 pt-2 border-top"
+            style={{ borderColor: "rgba(255,255,255,0.1)" }}
+          >
+            <div className="d-flex flex-column gap-1.5 mb-2.5">
+              {navLinks.map((link) => (
+                <NavLink
+                  key={link.to}
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) =>
+                    `px-3 py-2 rounded-lg font-weight-bold d-flex align-items-center gap-2 text-decoration-none ${
+                      isActive ? "text-white" : "text-white-50"
+                    }`
+                  }
+                  style={({ isActive }) => ({
+                    fontSize: "0.86rem",
+                    backgroundColor: isActive ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.04)",
+                  })}
+                  to={link.to}
+                >
+                  {link.icon}
+                  <span>{link.label}</span>
+                </NavLink>
+              ))}
+            </div>
+
+            <div className="d-flex align-items-center gap-2 pt-2 border-top" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <NavLink
+                to="/"
+                onClick={() => setMobileOpen(false)}
+                className="btn btn-sm btn-outline-light w-50 py-1.5 rounded-pill d-inline-flex align-items-center justify-content-center gap-1.5 font-weight-bold"
                 style={{ fontSize: "0.8rem" }}
               >
-                <FaSignOutAlt size={11} /> Sign Out
-              </button>
-            )}
+                <FaArrowLeft size={10} /> Portal Feed
+              </NavLink>
+
+              {isLoggedIn && (
+                <button
+                  onClick={handleSignOut}
+                  className="btn btn-sm btn-danger w-50 py-1.5 rounded-pill d-inline-flex align-items-center justify-content-center gap-1.5 font-weight-bold"
+                  style={{ fontSize: "0.8rem" }}
+                >
+                  <FaSignOutAlt size={11} /> Sign Out
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </nav>
   );
