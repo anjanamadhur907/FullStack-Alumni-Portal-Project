@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 load_dotenv()
 
-engine = create_async_engine(os.getenv("DB_URL"), echo=True)
+engine = create_async_engine(os.getenv("DB_URL"), echo=True,connect_args={"statement_cache_size": 0})
 
 SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
