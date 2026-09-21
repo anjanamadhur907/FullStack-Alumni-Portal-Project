@@ -14,7 +14,10 @@ import src.model
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", os.getenv("DB_URL"))
+config.set_main_option(
+    "sqlalchemy.url",
+    os.getenv("DB_URL").replace("%", "%%")
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -67,9 +70,10 @@ def do_run_migrations(connection):
 
 async def run_migrations_online():
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+    config.get_section(config.config_ini_section),
+    prefix="sqlalchemy.",
+    poolclass=pool.NullPool,
+    connect_args={"statement_cache_size": 0},
     )
 
     async with connectable.connect() as connection:
